@@ -1,0 +1,259 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"scopeName": "source.kaitai-struct",
+	"patterns": [
+		{ "include": "#comment" },
+		{ "include": "#expression-key-value" },
+		{ "include": "#key-value" },
+		{ "include": "#sequence-item" },
+		{ "include": "#scalar" }
+	],
+	"repository": {
+		"comment": {
+			"match": "(#).*$",
+			"name": "comment.line.number-sign.kaitai-struct",
+			"captures": {
+				"1": { "name": "punctuation.definition.comment.kaitai-struct" }
+			}
+		},
+		"expression-key-value": {
+			"comment": "Keys whose values are Kaitai expressions: highlight the value with expression grammar",
+			"patterns": [
+				{
+					"comment": "Expression key with quoted string value (single quotes)",
+					"begin": "^(\\s+)(size|repeat-expr|repeat-until|if|pos|io|value|switch-on)(:)\\s+(')",
+					"end": "(')",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"4": { "name": "punctuation.definition.string.begin.kaitai-struct" }
+					},
+					"endCaptures": {
+						"1": { "name": "punctuation.definition.string.end.kaitai-struct" }
+					},
+					"patterns": [
+						{ "include": "#expression" }
+					]
+				},
+				{
+					"comment": "Expression key with quoted string value (double quotes)",
+					"begin": "^(\\s+)(size|repeat-expr|repeat-until|if|pos|io|value|switch-on)(:)\\s+(\")",
+					"end": "(\")",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"4": { "name": "punctuation.definition.string.begin.kaitai-struct" }
+					},
+					"endCaptures": {
+						"1": { "name": "punctuation.definition.string.end.kaitai-struct" }
+					},
+					"patterns": [
+						{ "include": "#expression" }
+					]
+				},
+				{
+					"comment": "Expression key with unquoted value (rest of line)",
+					"begin": "^(\\s+)(size|repeat-expr|repeat-until|if|pos|io|value|switch-on)(:)\\s+(?=[^'\"#\\s])",
+					"end": "\\s*(#.*)?$",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" }
+					},
+					"endCaptures": {
+						"1": { "name": "comment.line.number-sign.kaitai-struct" }
+					},
+					"patterns": [
+						{ "include": "#expression" }
+					]
+				}
+			]
+		},
+		"expression": {
+			"patterns": [
+				{
+					"comment": "Special Kaitai identifiers",
+					"match": "\\b(_parent|_io|_root|_index|_)\\b",
+					"name": "variable.language.kaitai-struct"
+				},
+				{
+					"comment": "Expression keywords",
+					"match": "\\b(not|or|and)\\b",
+					"name": "keyword.operator.logical.kaitai-struct"
+				},
+				{
+					"comment": "sizeof operator",
+					"match": "\\b(sizeof)\\b",
+					"name": "keyword.operator.sizeof.kaitai-struct"
+				},
+				{
+					"comment": "as (type cast)",
+					"match": "\\b(as)\\b",
+					"name": "keyword.operator.cast.kaitai-struct"
+				},
+				{
+					"comment": "Boolean literals in expressions",
+					"match": "\\b(true|false)\\b",
+					"name": "constant.language.boolean.kaitai-struct"
+				},
+				{
+					"comment": "Hex numbers",
+					"match": "\\b0[xX][0-9a-fA-F]+\\b",
+					"name": "constant.numeric.hex.kaitai-struct"
+				},
+				{
+					"comment": "Binary numbers",
+					"match": "\\b0[bB][01]+\\b",
+					"name": "constant.numeric.binary.kaitai-struct"
+				},
+				{
+					"comment": "Octal numbers",
+					"match": "\\b0[oO][0-7]+\\b",
+					"name": "constant.numeric.octal.kaitai-struct"
+				},
+				{
+					"comment": "Decimal numbers (int and float)",
+					"match": "\\b\\d+(\\.\\d+)?\\b",
+					"name": "constant.numeric.decimal.kaitai-struct"
+				},
+				{
+					"comment": "Enum path separator",
+					"match": "::",
+					"name": "punctuation.accessor.double-colon.kaitai-struct"
+				},
+				{
+					"comment": "Comparison and logical operators",
+					"match": "==|!=|<=|>=|<<|>>|\\|\\||&&",
+					"name": "keyword.operator.comparison.kaitai-struct"
+				},
+				{
+					"comment": "Arithmetic and bitwise operators",
+					"match": "[+\\-*/%&|^~!<>]",
+					"name": "keyword.operator.arithmetic.kaitai-struct"
+				},
+				{
+					"comment": "Ternary operator",
+					"match": "[?:]",
+					"name": "keyword.operator.ternary.kaitai-struct"
+				},
+				{
+					"comment": "Dot accessor",
+					"match": "\\.",
+					"name": "punctuation.accessor.dot.kaitai-struct"
+				},
+				{
+					"comment": "Parentheses",
+					"match": "[()]",
+					"name": "punctuation.brackets.round.kaitai-struct"
+				},
+				{
+					"comment": "Square brackets",
+					"match": "[\\[\\]]",
+					"name": "punctuation.brackets.square.kaitai-struct"
+				},
+				{
+					"comment": "Method/property after dot",
+					"match": "(?<=\\.)[a-zA-Z_][a-zA-Z0-9_]*",
+					"name": "entity.name.function.member.kaitai-struct"
+				},
+				{
+					"comment": "Identifiers",
+					"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b",
+					"name": "variable.other.kaitai-struct"
+				}
+			]
+		},
+		"key-value": {
+			"patterns": [
+				{ "include": "#top-level-key" },
+				{ "include": "#meta-key" },
+				{ "include": "#attribute-key" },
+				{ "include": "#generic-key" }
+			]
+		},
+		"top-level-key": {
+			"match": "^(meta|seq|types|instances|enums|doc|doc-ref|params|to-string)(:)",
+			"captures": {
+				"1": { "name": "keyword.other.top-level.kaitai-struct" },
+				"2": { "name": "punctuation.separator.key-value.kaitai-struct" }
+			}
+		},
+		"meta-key": {
+			"match": "^\\s+(id|endian|bit-endian|file-extension|application|title|license|ks-version|ks-debug|ks-opaque-types|imports|encoding|xref|tags)(:)",
+			"captures": {
+				"1": { "name": "support.type.property-name.meta.kaitai-struct" },
+				"2": { "name": "punctuation.separator.key-value.kaitai-struct" }
+			}
+		},
+		"attribute-key": {
+			"match": "^\\s+(id|type|size|size-eos|repeat|repeat-expr|repeat-until|if|doc|doc-ref|contents|encoding|enum|process|pad-right|terminator|consume|include|eos-error|io|pos|value|valid|switch-on|cases)(:)",
+			"captures": {
+				"1": { "name": "entity.name.tag.attribute.kaitai-struct" },
+				"2": { "name": "punctuation.separator.key-value.kaitai-struct" }
+			}
+		},
+		"generic-key": {
+			"match": "^\\s*([-\\w.]+)\\s*(:)",
+			"captures": {
+				"1": { "name": "entity.name.tag.kaitai-struct" },
+				"2": { "name": "punctuation.separator.key-value.kaitai-struct" }
+			}
+		},
+		"sequence-item": {
+			"match": "^(\\s*)(-)\\s",
+			"captures": {
+				"2": { "name": "punctuation.definition.block.sequence.item.kaitai-struct" }
+			}
+		},
+		"scalar": {
+			"patterns": [
+				{ "include": "#string-double" },
+				{ "include": "#string-single" },
+				{ "include": "#boolean" },
+				{ "include": "#number" },
+				{ "include": "#builtin-type" },
+				{ "include": "#endian-value" },
+				{ "include": "#repeat-value" }
+			]
+		},
+		"string-double": {
+			"name": "string.quoted.double.kaitai-struct",
+			"begin": "\"",
+			"end": "\"",
+			"beginCaptures": { "0": { "name": "punctuation.definition.string.begin.kaitai-struct" } },
+			"endCaptures": { "0": { "name": "punctuation.definition.string.end.kaitai-struct" } },
+			"patterns": [
+				{ "match": "\\\\.", "name": "constant.character.escape.kaitai-struct" }
+			]
+		},
+		"string-single": {
+			"name": "string.quoted.single.kaitai-struct",
+			"begin": "'",
+			"end": "'",
+			"beginCaptures": { "0": { "name": "punctuation.definition.string.begin.kaitai-struct" } },
+			"endCaptures": { "0": { "name": "punctuation.definition.string.end.kaitai-struct" } },
+			"patterns": [
+				{ "match": "''", "name": "constant.character.escape.kaitai-struct" }
+			]
+		},
+		"boolean": {
+			"match": "(?<=:\\s)(true|false)\\s*$",
+			"name": "constant.language.boolean.kaitai-struct"
+		},
+		"number": {
+			"match": "(?<=:\\s)(0x[0-9a-fA-F]+|0b[01]+|0o[0-7]+|\\d+(\\.\\d+)?)\\s*$",
+			"name": "constant.numeric.kaitai-struct"
+		},
+		"builtin-type": {
+			"match": "(?<=type:\\s)(u[1248]|s[1248]|f[48]|str|strz|u[1248](le|be)|s[1248](le|be)|f[48](le|be))\\s*$",
+			"name": "support.type.builtin.kaitai-struct"
+		},
+		"endian-value": {
+			"match": "(?<=endian:\\s)(le|be)\\s*$",
+			"name": "constant.language.endian.kaitai-struct"
+		},
+		"repeat-value": {
+			"match": "(?<=repeat:\\s)(eos|expr|until)\\s*$",
+			"name": "constant.language.repeat.kaitai-struct"
+		}
+	}
+}

@@ -1,0 +1,50 @@
+{
+	"name": "kaitai-struct-lsp",
+	"displayName": "Kaitai Struct",
+	"description": "Language Server for Kaitai Struct (.ksy) files",
+	"version": "0.1.0",
+	"publisher": "kaitai",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.75.0"
+	},
+	"categories": [
+		"Programming Languages"
+	],
+	"activationEvents": [
+		"onLanguage:kaitai-struct"
+	],
+	"main": "./client/out/extension.js",
+	"contributes": {
+		"languages": [
+			{
+				"id": "kaitai-struct",
+				"aliases": [
+					"Kaitai Struct",
+					"ksy"
+				],
+				"extensions": [
+					".ksy"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "kaitai-struct",
+				"scopeName": "source.kaitai-struct",
+				"path": "./syntaxes/kaitai-struct.tmLanguage.json"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"postinstall": "cd client && npm install && cd ../server && npm install"
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.0",
+		"typescript": "^5.3.0"
+	}
+}

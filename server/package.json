@@ -1,0 +1,21 @@
+{
+	"name": "kaitai-struct-lsp-server",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"js-yaml": "^4.1.1",
+		"kaitai-struct-compiler": "^0.11.0",
+		"vscode-languageserver": "^9.0.1",
+		"vscode-languageserver-textdocument": "^1.0.11",
+		"web-tree-sitter": "^0.20.8"
+	},
+	"devDependencies": {
+		"@types/js-yaml": "^4.0.9",
+		"vitest": "^4.1.2"
+	}
+}

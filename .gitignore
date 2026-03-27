@@ -1,0 +1,6 @@
+node_modules/
+out/
+client/out/
+server/out/
+*.js.map
+.vscode-test/
