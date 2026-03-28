@@ -6,12 +6,12 @@ import { getHover } from './kaitai-hover';
 
 let parser: Parser;
 
-function hover(text: string, substring: string): ReturnType<typeof getHover> {
+function hover(text: string, substring: string, symbolDocs?: Map<string, string>): ReturnType<typeof getHover> {
 	const offset = text.indexOf(substring);
 	if (offset === -1) throw new Error(`Substring '${substring}' not found in text`);
 	const tree = parser.parse(text);
 	const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, text);
-	return getHover(tree.rootNode, doc, offset);
+	return getHover(tree.rootNode, doc, offset, symbolDocs ?? new Map());
 }
 
 function hoverContent(text: string, substring: string): string | null {
@@ -129,7 +129,7 @@ describe('attribute key hover', () => {
 		const idOffset = yaml.indexOf('- id') + 2; // skip '- ' to land on 'id'
 		const tree = parser.parse(yaml);
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, yaml);
-		const result = getHover(tree.rootNode, doc, idOffset);
+		const result = getHover(tree.rootNode, doc, idOffset, new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('**id**');
@@ -170,7 +170,7 @@ describe('attribute key hover', () => {
 		const ioOffset = yaml.indexOf('\n    io') + 5; // land on 'io'
 		const tree = parser.parse(yaml);
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, yaml);
-		const result = getHover(tree.rootNode, doc, ioOffset);
+		const result = getHover(tree.rootNode, doc, ioOffset, new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('**io**');
@@ -205,7 +205,7 @@ describe('param key hover', () => {
 		const idOffset = yaml.indexOf('- id', yaml.indexOf('params')) + 2;
 		const tree = parser.parse(yaml);
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, yaml);
-		const result = getHover(tree.rootNode, doc, idOffset);
+		const result = getHover(tree.rootNode, doc, idOffset, new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('**id**');
@@ -233,4 +233,40 @@ describe('no hover', () => {
 		const result = hover(yaml, 'bogus');
 		expect(result).toBeNull();
 	});
+});
+
+describe('symbol doc hover', () => {
+	const ksy = [
+		'meta:',
+		'  id: test',
+		'  endian: le',
+		'seq:',
+		'  - id: primary_geometry',
+		'    doc: DOCUMENTATION_GEOMETRY',
+		'    size: 0x1000',
+		'  - id: primary_metadata',
+		'    doc: primary_metadata doc',
+		'    size: primary_geometry',
+	].join('\n');
+
+	it('shows doc when hovering identifier in expression value', () => {
+		// Hover on 'primary_geometry' inside the size value on the last line
+		const sizeValueOffset = ksy.lastIndexOf('primary_geometry');
+		const tree = parser.parse(ksy);
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		const result = getHover(tree.rootNode, doc, sizeValueOffset + 3, new Map([
+			['primary_geometry', 'DOCUMENTATION_GEOMETRY'],
+		]));
+		expect(result).not.toBeNull();
+		const content = (result!.contents as any).value;
+		expect(content).toContain('DOCUMENTATION_GEOMETRY');
+		expect(content).toContain('**primary_geometry**');
+	});
+
+	it('returns null for identifier with no doc in symbol table', () => {
+		// hover on id key 'primary_geometry' (a key, not a value) — should use key hover, not symbol hover
+		const result = hover(ksy, 'primary_geometry', new Map());
+		expect(result).toBeNull();
+	});
+
 });

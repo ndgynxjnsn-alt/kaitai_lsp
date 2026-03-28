@@ -3,12 +3,51 @@
 	"scopeName": "source.kaitai-struct",
 	"patterns": [
 		{ "include": "#comment" },
+		{ "include": "#block-scalar" },
 		{ "include": "#expression-key-value" },
 		{ "include": "#key-value" },
 		{ "include": "#sequence-item" },
 		{ "include": "#scalar" }
 	],
 	"repository": {
+		"block-scalar": {
+			"comment": "YAML block scalar (| or >) — content scoped as string, single/double quotes inside are inert",
+			"patterns": [
+				{
+					"comment": "Top-level doc/doc-ref with block scalar (no leading indentation)",
+					"begin": "^(doc(?:-ref)?)(:)[ \\t]+([|>][+-]?)[ \\t]*$",
+					"end": "^(?![ \\t]|[ \\t]*$)",
+					"beginCaptures": {
+						"1": { "name": "keyword.other.top-level.kaitai-struct" },
+						"2": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"3": { "name": "keyword.operator.block-scalar.kaitai-struct" }
+					},
+					"contentName": "string.unquoted.block.kaitai-struct"
+				},
+				{
+					"comment": "Indented doc/doc-ref with block scalar",
+					"begin": "^([ \\t]+)(doc(?:-ref)?)(:)[ \\t]+([|>][+-]?)[ \\t]*$",
+					"end": "^(?!\\1[ \\t]|[ \\t]*$)",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"4": { "name": "keyword.operator.block-scalar.kaitai-struct" }
+					},
+					"contentName": "string.unquoted.block.kaitai-struct"
+				},
+				{
+					"comment": "Any other key with block scalar — indentation back-reference prevents false quote matches in content",
+					"begin": "^([ \\t]*)([-\\w.]+)(:)[ \\t]+([|>][+-]?)[ \\t]*$",
+					"end": "^(?!\\1[ \\t]|[ \\t]*$)",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"4": { "name": "keyword.operator.block-scalar.kaitai-struct" }
+					},
+					"contentName": "string.unquoted.block.kaitai-struct"
+				}
+			]
+		},
 		"comment": {
 			"match": "(#).*$",
 			"name": "comment.line.number-sign.kaitai-struct",
@@ -199,10 +238,52 @@
 			}
 		},
 		"sequence-item": {
-			"match": "^(\\s*)(-)\\s",
-			"captures": {
-				"2": { "name": "punctuation.definition.block.sequence.item.kaitai-struct" }
-			}
+			"patterns": [
+				{
+					"comment": "Sequence item with inline expression key — value highlighted as Kaitai expression",
+					"begin": "^([ \\t]*)(-)[ \\t]+(size|repeat-expr|repeat-until|if|pos|io|value|switch-on)(:)[ \\t]*",
+					"end": "[ \\t]*(#.*)?$",
+					"beginCaptures": {
+						"2": { "name": "punctuation.definition.block.sequence.item.kaitai-struct" },
+						"3": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"4": { "name": "punctuation.separator.key-value.kaitai-struct" }
+					},
+					"endCaptures": {
+						"1": { "name": "comment.line.number-sign.kaitai-struct" }
+					},
+					"patterns": [{ "include": "#expression" }]
+				},
+				{
+					"comment": "Sequence item with inline known attribute key — value highlighted as scalar",
+					"begin": "^([ \\t]*)(-)[ \\t]+(id|type|size-eos|repeat|doc|doc-ref|contents|encoding|enum|process|pad-right|terminator|consume|include|eos-error|valid|cases)(:)",
+					"end": "$",
+					"beginCaptures": {
+						"2": { "name": "punctuation.definition.block.sequence.item.kaitai-struct" },
+						"3": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"4": { "name": "punctuation.separator.key-value.kaitai-struct" }
+					},
+					"patterns": [{ "include": "#scalar" }]
+				},
+				{
+					"comment": "Sequence item with inline generic key — (?!//) prevents matching URL schemes like https://",
+					"begin": "^([ \\t]*)(-)[ \\t]+([-\\w.]+)(:)(?!//)",
+					"end": "$",
+					"beginCaptures": {
+						"2": { "name": "punctuation.definition.block.sequence.item.kaitai-struct" },
+						"3": { "name": "entity.name.tag.kaitai-struct" },
+						"4": { "name": "punctuation.separator.key-value.kaitai-struct" }
+					},
+					"patterns": [{ "include": "#scalar" }]
+				},
+				{
+					"comment": "Bare sequence item with scalar value (tags, imports, doc-ref URLs, etc.)",
+					"match": "^([ \\t]*)(-)[ \\t]+([^#\\n]+?)(?=[ \\t]*(#.*)?$)",
+					"captures": {
+						"2": { "name": "punctuation.definition.block.sequence.item.kaitai-struct" },
+						"3": { "name": "string.unquoted.plain.kaitai-struct" }
+					}
+				}
+			]
 		},
 		"scalar": {
 			"patterns": [
@@ -212,7 +293,8 @@
 				{ "include": "#number" },
 				{ "include": "#builtin-type" },
 				{ "include": "#endian-value" },
-				{ "include": "#repeat-value" }
+				{ "include": "#repeat-value" },
+				{ "include": "#plain-scalar" }
 			]
 		},
 		"string-double": {
@@ -254,6 +336,11 @@
 		"repeat-value": {
 			"match": "(?<=repeat:\\s)(eos|expr|until)\\s*$",
 			"name": "constant.language.repeat.kaitai-struct"
+		},
+		"plain-scalar": {
+			"comment": "Unquoted plain scalar value after a colon — catches strings like identifiers and titles not matched by specific rules",
+			"match": "(?<=:\\s)[^\\s#'\"\\[\\{|>\\n][^#\\n]*?(?=\\s*(#.*)?$)",
+			"name": "string.unquoted.plain.kaitai-struct"
 		}
 	}
 }

@@ -175,6 +175,43 @@ function extractText(node: Parser.SyntaxNode): string | null {
 	return null;
 }
 
+/**
+ * Walk the parsed KSY object and collect all id → doc mappings across seq,
+ * instances, and nested types. Cross-file imports are not resolved.
+ */
+export function buildSymbolDocs(ksyObject: any): Map<string, string> {
+	const docs = new Map<string, string>();
+
+	function processAttrs(attrs: any[]) {
+		if (!Array.isArray(attrs)) return;
+		for (const attr of attrs) {
+			if (attr && typeof attr === 'object' && typeof attr.id === 'string' && typeof attr.doc === 'string') {
+				docs.set(attr.id, attr.doc);
+			}
+		}
+	}
+
+	function processType(t: any) {
+		if (!t || typeof t !== 'object') return;
+		processAttrs(t.seq);
+		if (t.instances && typeof t.instances === 'object') {
+			for (const [id, inst] of Object.entries(t.instances)) {
+				if (inst && typeof inst === 'object' && typeof (inst as any).doc === 'string') {
+					docs.set(id, (inst as any).doc);
+				}
+			}
+		}
+		if (t.types && typeof t.types === 'object') {
+			for (const sub of Object.values(t.types)) {
+				processType(sub);
+			}
+		}
+	}
+
+	processType(ksyObject);
+	return docs;
+}
+
 export async function compileAndGetDiagnostics(
 	text: string,
 	tree: Parser.SyntaxNode,

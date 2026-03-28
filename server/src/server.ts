@@ -10,12 +10,16 @@ import {
 	TextDocumentSyncKind,
 	HoverParams,
 	Hover,
+	DefinitionParams,
+	Location,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
+import * as yaml from 'js-yaml';
 import { validateKaitai } from './kaitai-validation';
 import { getHover } from './kaitai-hover';
-import { compileAndGetDiagnostics } from './kaitai-compiler';
+import { getDefinition } from './kaitai-definition';
+import { compileAndGetDiagnostics, buildSymbolDocs } from './kaitai-compiler';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -24,6 +28,7 @@ let parser: Parser | null = null;
 
 const COMPILER_DEBOUNCE_MS = 1000;
 const compilerTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const documentSymbolDocs = new Map<string, Map<string, string>>();
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
 	connection.console.log('Kaitai Struct LSP: Initializing...');
@@ -43,6 +48,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 		capabilities: {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			hoverProvider: true,
+			definitionProvider: true,
 		},
 	};
 });
@@ -55,6 +61,17 @@ documents.onDidChangeContent((change) => {
 	validateDocument(change.document);
 });
 
+connection.onDefinition((params: DefinitionParams): Location | null => {
+	if (!parser) return null;
+	const textDocument = documents.get(params.textDocument.uri);
+	if (!textDocument) return null;
+
+	const text = textDocument.getText();
+	const tree = parser.parse(text);
+	const offset = textDocument.offsetAt(params.position);
+	return getDefinition(tree.rootNode, textDocument, offset);
+});
+
 connection.onHover((params: HoverParams): Hover | null => {
 	if (!parser) return null;
 	const textDocument = documents.get(params.textDocument.uri);
@@ -63,7 +80,8 @@ connection.onHover((params: HoverParams): Hover | null => {
 	const text = textDocument.getText();
 	const tree = parser.parse(text);
 	const offset = textDocument.offsetAt(params.position);
-	return getHover(tree.rootNode, textDocument, offset);
+	const symbolDocs = documentSymbolDocs.get(params.textDocument.uri) ?? new Map();
+	return getHover(tree.rootNode, textDocument, offset, symbolDocs);
 });
 
 async function validateDocument(textDocument: TextDocument): Promise<void> {
@@ -74,6 +92,14 @@ async function validateDocument(textDocument: TextDocument): Promise<void> {
 	const text = textDocument.getText();
 	const tree = parser.parse(text);
 	const diagnostics: Diagnostic[] = [];
+
+	// Build symbol doc table eagerly (not debounced) so hover is always up to date
+	try {
+		const ksyObject = yaml.load(text);
+		documentSymbolDocs.set(textDocument.uri, buildSymbolDocs(ksyObject));
+	} catch {
+		// YAML errors handled by tree-sitter; leave existing table in place
+	}
 
 	collectErrors(tree.rootNode, textDocument, diagnostics);
 	diagnostics.push(...validateKaitai(tree.rootNode, textDocument));

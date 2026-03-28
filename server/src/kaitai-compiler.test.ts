@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'path';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
-import { compileAndGetDiagnostics } from './kaitai-compiler';
+import { compileAndGetDiagnostics, buildSymbolDocs } from './kaitai-compiler';
+import * as yaml from 'js-yaml';
 
 let parser: Parser;
 
@@ -148,5 +149,52 @@ types:
 		const diags = await compile(yaml);
 		expect(diags.length).toBeGreaterThan(0);
 		expect(diags[0].message).toContain('nonexistent_inner');
+	});
+});
+
+describe('buildSymbolDocs', () => {
+	it('extracts doc from seq fields', () => {
+		const ksy = yaml.load([
+			'meta:',
+			'  id: test',
+			'  endian: le',
+			'seq:',
+			'  - id: primary_geometry',
+			'    doc: DOCUMENTATION_GEOMETRY',
+			'    size: 0x1000',
+			'  - id: primary_metadata',
+			'    doc: primary_metadata doc',
+			'    size: 4',
+		].join('\n'));
+		const docs = buildSymbolDocs(ksy);
+		expect(docs.get('primary_geometry')).toBe('DOCUMENTATION_GEOMETRY');
+		expect(docs.get('primary_metadata')).toBe('primary_metadata doc');
+	});
+
+	it('extracts doc from nested types and instances', () => {
+		const ksy = yaml.load([
+			'meta:',
+			'  id: nested',
+			'  endian: le',
+			'types:',
+			'  inner:',
+			'    seq:',
+			'      - id: field_a',
+			'        doc: doc for field_a',
+			'        size: 1',
+			'    instances:',
+			'      inst_b:',
+			'        doc: doc for inst_b',
+			'        value: 42',
+		].join('\n'));
+		const docs = buildSymbolDocs(ksy);
+		expect(docs.get('field_a')).toBe('doc for field_a');
+		expect(docs.get('inst_b')).toBe('doc for inst_b');
+	});
+
+	it('ignores fields without doc', () => {
+		const ksy = yaml.load('meta:\n  id: t\nseq:\n  - id: nodoc\n    size: 1');
+		const docs = buildSymbolDocs(ksy);
+		expect(docs.has('nodoc')).toBe(false);
 	});
 });

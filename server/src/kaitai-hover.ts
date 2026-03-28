@@ -156,28 +156,98 @@ function findKeyPairAtOffset(root: Parser.SyntaxNode, offset: number): { pair: P
 	return null;
 }
 
+/**
+ * Given a YAML value node (scalar) and a document offset, extract the Kaitai
+ * identifier (word) that the cursor is positioned on.
+ * Returns { word, startIndex, endIndex } where indices are into the document.
+ */
+function findIdentifierAtOffset(
+	root: Parser.SyntaxNode,
+	offset: number
+): { word: string; startIndex: number; endIndex: number } | null {
+	const node = root.descendantForIndex(offset);
+	if (!node) return null;
+
+	// Walk up to find if we're in the VALUE of a block_mapping_pair
+	let current: Parser.SyntaxNode | null = node;
+	while (current) {
+		if (current.type === 'block_mapping_pair') {
+			const keyNode = current.childForFieldName('key');
+			const valueNode = current.childForFieldName('value');
+			// Only proceed if cursor is on the value side, not the key
+			if (!keyNode || offset <= keyNode.endIndex) return null;
+			if (!valueNode) return null;
+			break;
+		}
+		current = current.parent;
+	}
+	if (!current) return null;
+
+	// Find the word boundary around the cursor within the node's text
+	const text = node.text;
+	const rel = offset - node.startIndex;
+	if (rel < 0 || rel > text.length) return null;
+
+	const wordRe = /[a-zA-Z_][a-zA-Z0-9_]*/g;
+	let m: RegExpExecArray | null;
+	while ((m = wordRe.exec(text)) !== null) {
+		const start = m.index;
+		const end = start + m[0].length;
+		if (start <= rel && rel <= end) {
+			return {
+				word: m[0],
+				startIndex: node.startIndex + start,
+				endIndex: node.startIndex + end,
+			};
+		}
+	}
+	return null;
+}
+
 export function getHover(
 	root: Parser.SyntaxNode,
 	textDocument: TextDocument,
-	offset: number
+	offset: number,
+	symbolDocs: Map<string, string>
 ): Hover | null {
+	// 1. Key hover — schema descriptions for recognised keys
 	const result = findKeyPairAtOffset(root, offset);
-	if (!result) return null;
+	if (result) {
+		const { pair, key } = result;
+		const context = determineKeyContext(pair);
+		const description = getDescriptionForKey(key, context);
+		if (description) {
+			const keyNode = pair.childForFieldName('key')!;
+			return {
+				contents: {
+					kind: MarkupKind.Markdown,
+					value: `**${key}** _(${context})_\n\n${description}`,
+				},
+				range: {
+					start: textDocument.positionAt(keyNode.startIndex),
+					end: textDocument.positionAt(keyNode.endIndex),
+				},
+			};
+		}
+	}
 
-	const { pair, key } = result;
-	const context = determineKeyContext(pair);
-	const description = getDescriptionForKey(key, context);
-	if (!description) return null;
+	// 2. Identifier hover — doc strings for field/instance identifiers in expressions
+	const ident = findIdentifierAtOffset(root, offset);
+	if (ident) {
+		const doc = symbolDocs.get(ident.word);
+		if (doc) {
+			return {
+				contents: {
+					kind: MarkupKind.Markdown,
+					value: `**${ident.word}**\n\n${doc}`,
+				},
+				range: {
+					start: textDocument.positionAt(ident.startIndex),
+					end: textDocument.positionAt(ident.endIndex),
+				},
+			};
+		}
+	}
 
-	const keyNode = pair.childForFieldName('key')!;
-	return {
-		contents: {
-			kind: MarkupKind.Markdown,
-			value: `**${key}** _(${context})_\n\n${description}`,
-		},
-		range: {
-			start: textDocument.positionAt(keyNode.startIndex),
-			end: textDocument.positionAt(keyNode.endIndex),
-		},
-	};
+	return null;
 }
