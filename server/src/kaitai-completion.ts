@@ -2,6 +2,7 @@ import { CompletionItem, CompletionItemKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
 import { EXPRESSION_KEYS } from './kaitai-expression';
+import { VALID_ENCODINGS } from './kaitai-validation';
 
 // ---- AST helpers (same pattern as other modules) ----
 
@@ -539,6 +540,15 @@ function valueCompletions(key: string, _prefix: string, root: Parser.SyntaxNode)
 			{ label: 'expr', kind: CompletionItemKind.Value, detail: 'Repeat N times (see repeat-expr)' },
 			{ label: 'until', kind: CompletionItemKind.Value, detail: 'Repeat until condition (see repeat-until)' },
 		];
+	}
+
+	if (key === 'encoding') {
+		const PRIORITY: Record<string, string> = { 'UTF-8': '0', 'ASCII': '1' };
+		return [...VALID_ENCODINGS].map(e => ({
+			label: e,
+			kind: CompletionItemKind.Value,
+			sortText: (PRIORITY[e] ?? '2') + '_' + e,
+		}));
 	}
 
 	if (key === 'size-eos' || key === 'ks-debug' || key === 'ks-opaque-types' ||

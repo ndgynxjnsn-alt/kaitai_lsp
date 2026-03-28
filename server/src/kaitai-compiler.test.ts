@@ -106,6 +106,33 @@ seq:
 		expect(highlighted).toBe('nonexistent');
 	});
 
+	it('points diagnostic to cases mapping when cases key is invalid', async () => {
+		// `tag::` as a cases key (missing value) — KSC path ends in `tag::` which
+		// tree-sitter may store as `tag:`. The squiggle should NOT fall back to line 0.
+		const ksy = `meta:
+  id: test
+  endian: le
+enums:
+  tag:
+    1: byte
+    2: short
+seq:
+  - id: kind
+    type: u1
+  - id: payload
+    type:
+      switch-on: kind
+      cases:
+        tag::byte: s2
+        tag::`;
+		const diags = await compile(ksy);
+		expect(diags.length).toBeGreaterThan(0);
+		// Error should NOT be at line 0 (the meta: fallback)
+		expect(diags[0].range.start.line).toBeGreaterThan(0);
+		// Should be somewhere near the cases block (after line 10)
+		expect(diags[0].range.start.line).toBeGreaterThan(10);
+	});
+
 	it('returns no diagnostics for invalid YAML', async () => {
 		const yaml = `{{{not yaml`;
 		const diags = await compile(yaml);

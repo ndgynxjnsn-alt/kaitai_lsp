@@ -24,7 +24,8 @@ const nullImporter: IYamlImporter = {
  */
 function parseCompilerError(message: string): { path: string[]; description: string } | null {
 	// Match: optional_prefix: /path:\n\tseverity: message
-	const match = message.match(/^[^:]*:\s*\/([^:]*?):\s*\n?\s*error:\s*(.+)$/s);
+	// Path may contain `::` (enum member notation), so we allow `:` inside the path.
+	const match = message.match(/^[^:]*:\s*\/(.*?):\s*\n\s*error:\s*(.+)$/s);
 	if (!match) return null;
 	const pathStr = match[1];
 	const description = match[2].trim();
@@ -53,14 +54,25 @@ function resolvePathToNode(root: Parser.SyntaxNode, path: string[]): Parser.Synt
 			// The item content is inside block_sequence_item > block_node > block_mapping
 			node = findMappingInItem(item) ?? item;
 		} else {
-			// String key — find the block_mapping_pair with this key
-			const pair = findPairByKey(node, segment);
-			if (!pair) return null;
+			// String key — find the block_mapping_pair with this key.
+			// KSC may report enum-scoped keys like `tag::` where YAML stores the key
+			// as `tag:` (the second `:` being the block mapping indicator), so if the
+			// exact key isn't found we retry with trailing colons stripped.
+			let pair = findPairByKey(node, segment);
+			if (!pair) {
+				const stripped = segment.replace(/:+$/, '');
+				if (stripped !== segment) pair = findPairByKey(node, stripped);
+			}
 
 			if (i === path.length - 1) {
-				// Last segment: return the value node (the erroneous content)
+				// Last segment: return the value node, or the pair, or fall back to
+				// the parent mapping so the squiggle lands near the problem rather
+				// than at the start of the document.
+				if (!pair) return node;
 				return pair.childForFieldName('value') ?? pair;
 			}
+
+			if (!pair) return null;
 
 			// Navigate into the value
 			const value = pair.childForFieldName('value');
@@ -79,6 +91,7 @@ function resolvePathToNode(root: Parser.SyntaxNode, path: string[]): Parser.Synt
 }
 
 function findDocumentMapping(root: Parser.SyntaxNode): Parser.SyntaxNode | null {
+	// Normal: stream > document > block_node > block_mapping
 	for (const child of root.children) {
 		if (child.type === 'document') {
 			for (const docChild of child.children) {
@@ -90,6 +103,9 @@ function findDocumentMapping(root: Parser.SyntaxNode): Parser.SyntaxNode | null 
 			}
 		}
 	}
+	// Error recovery: tree-sitter emits an ERROR root with direct block_mapping_pair children
+	const errorNode = root.type === 'ERROR' ? root : root.children.find(c => c.type === 'ERROR') ?? null;
+	if (errorNode?.children.some(c => c.type === 'block_mapping_pair')) return errorNode;
 	return null;
 }
 

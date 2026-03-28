@@ -32,7 +32,7 @@ const VALID_PARAM_KEYS = new Set([
 const VALID_ENDIAN = new Set(['le', 'be']);
 const VALID_REPEAT = new Set(['eos', 'expr', 'until']);
 
-const VALID_ENCODINGS = new Set([
+export const VALID_ENCODINGS = new Set([
 	'ASCII', 'UTF-8', 'UTF-16BE', 'UTF-16LE', 'UTF-32BE', 'UTF-32LE',
 	'ISO-8859-1', 'ISO-8859-2', 'ISO-8859-3', 'ISO-8859-4', 'ISO-8859-5',
 	'ISO-8859-6', 'ISO-8859-7', 'ISO-8859-8', 'ISO-8859-9', 'ISO-8859-10',
@@ -119,7 +119,7 @@ function validateMeta(
 		} else if (key === 'bit-endian') {
 			validateEnumValue(child, doc, diagnostics, VALID_ENDIAN, 'bit-endian');
 		} else if (key === 'encoding') {
-			validateEnumValue(child, doc, diagnostics, VALID_ENCODINGS, 'encoding');
+			validateEnumValue(child, doc, diagnostics, VALID_ENCODINGS, 'encoding', true);
 		}
 	}
 
@@ -159,7 +159,7 @@ function validateAttribute(
 		if (key === 'repeat') {
 			validateEnumValue(pair, doc, diagnostics, VALID_REPEAT, 'repeat');
 		} else if (key === 'encoding') {
-			validateEnumValue(pair, doc, diagnostics, VALID_ENCODINGS, 'encoding');
+			validateEnumValue(pair, doc, diagnostics, VALID_ENCODINGS, 'encoding', true);
 		} else if (EXPRESSION_KEYS.has(key)) {
 			validateExpressionValue(pair, doc, diagnostics);
 		}
@@ -185,7 +185,7 @@ function validateInstance(
 		if (key === 'repeat') {
 			validateEnumValue(pair, doc, diagnostics, VALID_REPEAT, 'repeat');
 		} else if (key === 'encoding') {
-			validateEnumValue(pair, doc, diagnostics, VALID_ENCODINGS, 'encoding');
+			validateEnumValue(pair, doc, diagnostics, VALID_ENCODINGS, 'encoding', true);
 		} else if (EXPRESSION_KEYS.has(key)) {
 			validateExpressionValue(pair, doc, diagnostics);
 		}
@@ -321,12 +321,16 @@ function validateEnumValue(
 	doc: TextDocument,
 	diagnostics: Diagnostic[],
 	validValues: Set<string>,
-	fieldName: string
+	fieldName: string,
+	caseInsensitive = false
 ): void {
 	const value = getValueText(pair);
 	if (value === null) return;
 
-	if (!validValues.has(value)) {
+	const matches = caseInsensitive
+		? [...validValues].some(v => v.toLowerCase() === value.toLowerCase())
+		: validValues.has(value);
+	if (!matches) {
 		const valueNode = getValueNode(pair);
 		if (valueNode) {
 			diagnostics.push({

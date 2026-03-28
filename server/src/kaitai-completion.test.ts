@@ -211,6 +211,35 @@ describe('value completions — repeat:', () => {
 	});
 });
 
+describe('value completions — encoding:', () => {
+	it('suggests common encodings in meta context', () => {
+		const yaml = `meta:\n  id: test\n  encoding: `;
+		const ls = labels(yaml, yaml.length);
+		expect(ls).toContain('UTF-8');
+		expect(ls).toContain('ASCII');
+		expect(ls).toContain('UTF-16LE');
+		expect(ls).toContain('ISO-8859-1');
+		expect(ls).toContain('Shift_JIS');
+	});
+
+	it('suggests encodings in attribute context', () => {
+		const yaml = `meta:\n  id: test\nseq:\n  - id: s\n    type: str\n    encoding: `;
+		const ls = labels(yaml, yaml.length);
+		expect(ls).toContain('UTF-8');
+		expect(ls).toContain('windows-1252');
+	});
+
+	it('ranks UTF-8 first and ASCII second', () => {
+		const yaml = `meta:\n  id: test\n  encoding: `;
+		const items = complete(yaml, yaml.length);
+		const sorted = [...items].sort((a, b) =>
+			(a.sortText ?? a.label).localeCompare(b.sortText ?? b.label)
+		);
+		expect(sorted[0].label).toBe('UTF-8');
+		expect(sorted[1].label).toBe('ASCII');
+	});
+});
+
 describe('value completions — boolean flags', () => {
 	it('suggests true/false for size-eos', () => {
 		const yaml = `meta:\n  id: test\nseq:\n  - id: foo\n    size-eos: `;

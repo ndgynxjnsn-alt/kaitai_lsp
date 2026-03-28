@@ -103,6 +103,12 @@ describe('meta validation', () => {
 		}
 	});
 
+	it('accepts encoding values case-insensitively', () => {
+		for (const enc of ['utf-8', 'ascii', 'utf-16be', 'iso-8859-1']) {
+			expect(hasMessage(`meta:\n  id: test\n  encoding: ${enc}`, 'Invalid encoding')).toBe(false);
+		}
+	});
+
 	it('allows dash-prefixed keys in meta', () => {
 		expect(hasMessage('meta:\n  id: test\n  -note: something', '-note')).toBe(false);
 	});
