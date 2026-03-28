@@ -12,6 +12,8 @@ import {
 	Hover,
 	DefinitionParams,
 	Location,
+	CompletionParams,
+	CompletionItem,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
@@ -20,6 +22,7 @@ import { validateKaitai } from './kaitai-validation';
 import { getHover } from './kaitai-hover';
 import { getDefinition } from './kaitai-definition';
 import { compileAndGetDiagnostics, buildSymbolDocs, buildEnumDocs } from './kaitai-compiler';
+import { getCompletions } from './kaitai-completion';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -50,6 +53,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			hoverProvider: true,
 			definitionProvider: true,
+			completionProvider: {
+				triggerCharacters: [' ', '.', ':'],
+			},
 		},
 	};
 });
@@ -84,6 +90,17 @@ connection.onHover((params: HoverParams): Hover | null => {
 	const symbolDocs = documentSymbolDocs.get(params.textDocument.uri) ?? new Map();
 	const enumDocs = documentEnumDocs.get(params.textDocument.uri) ?? new Map();
 	return getHover(tree.rootNode, textDocument, offset, symbolDocs, enumDocs);
+});
+
+connection.onCompletion((params: CompletionParams): CompletionItem[] => {
+	if (!parser) return [];
+	const textDocument = documents.get(params.textDocument.uri);
+	if (!textDocument) return [];
+
+	const text = textDocument.getText();
+	const tree = parser.parse(text);
+	const offset = textDocument.offsetAt(params.position);
+	return getCompletions(tree.rootNode, textDocument, offset);
 });
 
 async function validateDocument(textDocument: TextDocument): Promise<void> {
