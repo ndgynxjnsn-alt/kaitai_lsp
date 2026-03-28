@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'path';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
-import { compileAndGetDiagnostics, buildSymbolDocs } from './kaitai-compiler';
+import { compileAndGetDiagnostics, buildSymbolDocs, buildEnumDocs } from './kaitai-compiler';
 import * as yaml from 'js-yaml';
 
 let parser: Parser;
@@ -196,5 +196,57 @@ describe('buildSymbolDocs', () => {
 		const ksy = yaml.load('meta:\n  id: t\nseq:\n  - id: nodoc\n    size: 1');
 		const docs = buildSymbolDocs(ksy);
 		expect(docs.has('nodoc')).toBe(false);
+	});
+});
+
+describe('buildEnumDocs', () => {
+	it('extracts enum values', () => {
+		const ksy = yaml.load([
+			'meta:',
+			'  id: test',
+			'enums:',
+			'  sections:',
+			'    1: struct',
+			'    2: clump',
+			'    3: frame_list',
+		].join('\n'));
+		const docs = buildEnumDocs(ksy);
+		expect(docs.has('sections')).toBe(true);
+		const entry = docs.get('sections')!;
+		expect(entry).toContain('struct');
+		expect(entry).toContain('clump');
+		expect(entry).toContain('frame_list');
+	});
+
+	it('extracts enums from nested types', () => {
+		const ksy = yaml.load([
+			'meta:',
+			'  id: test',
+			'types:',
+			'  inner:',
+			'    enums:',
+			'      kind:',
+			'        0: unknown',
+			'        1: known',
+		].join('\n'));
+		const docs = buildEnumDocs(ksy);
+		expect(docs.has('kind')).toBe(true);
+		expect(docs.get('kind')).toContain('unknown');
+	});
+
+	it('truncates long enums and shows count', () => {
+		const entries: Record<number, string> = {};
+		for (let i = 0; i < 20; i++) entries[i] = `val_${i}`;
+		const ksy = { enums: { big: entries } };
+		const docs = buildEnumDocs(ksy);
+		const entry = docs.get('big')!;
+		expect(entry).toContain('+');
+		expect(entry).toContain('more');
+	});
+
+	it('returns empty map for KSY without enums', () => {
+		const ksy = yaml.load('meta:\n  id: t\nseq:\n  - id: foo\n    size: 1');
+		const docs = buildEnumDocs(ksy);
+		expect(docs.size).toBe(0);
 	});
 });

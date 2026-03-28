@@ -176,6 +176,37 @@ function extractText(node: Parser.SyntaxNode): string | null {
 }
 
 /**
+ * Walk the parsed KSY object and collect all enum name → formatted-value-list
+ * mappings. Nested type enums are included.
+ */
+export function buildEnumDocs(ksyObject: any): Map<string, string> {
+	const docs = new Map<string, string>();
+
+	function formatKey(n: number): string {
+		return n >= 256 ? `0x${n.toString(16)}` : String(n);
+	}
+
+	function processType(t: any) {
+		if (!t || typeof t !== 'object') return;
+		if (t.enums && typeof t.enums === 'object') {
+			for (const [enumName, enumBody] of Object.entries(t.enums)) {
+				if (!enumBody || typeof enumBody !== 'object') continue;
+				const entries = Object.entries(enumBody as Record<string, string>);
+				const lines = entries.slice(0, 12).map(([k, v]) => `\`${v}\` (${formatKey(Number(k))})`);
+				const suffix = entries.length > 12 ? ` _(+${entries.length - 12} more)_` : '';
+				docs.set(enumName, lines.join(', ') + suffix);
+			}
+		}
+		if (t.types && typeof t.types === 'object') {
+			for (const sub of Object.values(t.types)) processType(sub);
+		}
+	}
+
+	processType(ksyObject);
+	return docs;
+}
+
+/**
  * Walk the parsed KSY object and collect all id → doc mappings across seq,
  * instances, and nested types. Cross-file imports are not resolved.
  */

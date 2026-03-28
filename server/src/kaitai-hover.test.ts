@@ -6,12 +6,12 @@ import { getHover } from './kaitai-hover';
 
 let parser: Parser;
 
-function hover(text: string, substring: string, symbolDocs?: Map<string, string>): ReturnType<typeof getHover> {
+function hover(text: string, substring: string, symbolDocs?: Map<string, string>, enumDocs?: Map<string, string>): ReturnType<typeof getHover> {
 	const offset = text.indexOf(substring);
 	if (offset === -1) throw new Error(`Substring '${substring}' not found in text`);
 	const tree = parser.parse(text);
 	const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, text);
-	return getHover(tree.rootNode, doc, offset, symbolDocs ?? new Map());
+	return getHover(tree.rootNode, doc, offset, symbolDocs ?? new Map(), enumDocs ?? new Map());
 }
 
 function hoverContent(text: string, substring: string): string | null {
@@ -129,7 +129,7 @@ describe('attribute key hover', () => {
 		const idOffset = yaml.indexOf('- id') + 2; // skip '- ' to land on 'id'
 		const tree = parser.parse(yaml);
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, yaml);
-		const result = getHover(tree.rootNode, doc, idOffset, new Map());
+		const result = getHover(tree.rootNode, doc, idOffset, new Map(), new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('**id**');
@@ -170,7 +170,7 @@ describe('attribute key hover', () => {
 		const ioOffset = yaml.indexOf('\n    io') + 5; // land on 'io'
 		const tree = parser.parse(yaml);
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, yaml);
-		const result = getHover(tree.rootNode, doc, ioOffset, new Map());
+		const result = getHover(tree.rootNode, doc, ioOffset, new Map(), new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('**io**');
@@ -205,7 +205,7 @@ describe('param key hover', () => {
 		const idOffset = yaml.indexOf('- id', yaml.indexOf('params')) + 2;
 		const tree = parser.parse(yaml);
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, yaml);
-		const result = getHover(tree.rootNode, doc, idOffset, new Map());
+		const result = getHover(tree.rootNode, doc, idOffset, new Map(), new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('**id**');
@@ -256,7 +256,7 @@ describe('symbol doc hover', () => {
 		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
 		const result = getHover(tree.rootNode, doc, sizeValueOffset + 3, new Map([
 			['primary_geometry', 'DOCUMENTATION_GEOMETRY'],
-		]));
+		]), new Map());
 		expect(result).not.toBeNull();
 		const content = (result!.contents as any).value;
 		expect(content).toContain('DOCUMENTATION_GEOMETRY');
@@ -269,4 +269,61 @@ describe('symbol doc hover', () => {
 		expect(result).toBeNull();
 	});
 
+});
+
+describe('enum hover', () => {
+	const enumDocs = new Map([['sections', '`struct` (0x1), `clump` (0x2)']]);
+
+	it('shows enum info when hovering value of enum: key', () => {
+		const ksy = `meta:\n  id: t\nseq:\n  - id: x\n    type: u1\n    enum: sections`;
+		// hover on 'sections' — it's the value of 'enum:'
+		const offset = ksy.lastIndexOf('sections');
+		const tree = parser.parse(ksy);
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		const result = getHover(tree.rootNode, doc, offset + 2, new Map(), enumDocs);
+		expect(result).not.toBeNull();
+		const content = (result!.contents as any).value;
+		expect(content).toContain('**sections**');
+		expect(content).toContain('enum');
+		expect(content).toContain('struct');
+	});
+
+	it('shows enum info when hovering enum name in expression value', () => {
+		const ksy = `meta:\n  id: t\nseq:\n  - id: x\n    type: u1\n    if: sections`;
+		const offset = ksy.lastIndexOf('sections');
+		const tree = parser.parse(ksy);
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		const result = getHover(tree.rootNode, doc, offset + 2, new Map(), enumDocs);
+		expect(result).not.toBeNull();
+		const content = (result!.contents as any).value;
+		expect(content).toContain('**sections**');
+	});
+
+	it('shows enum info when hovering cases key with enum path', () => {
+		const ksy = [
+			'meta:',
+			'  id: t',
+			'  endian: le',
+			'seq:',
+			'  - id: body',
+			'    type:',
+			'      switch-on: code',
+			'      cases:',
+			'        sections::clump: some_type',
+		].join('\n');
+		const offset = ksy.lastIndexOf('sections');
+		const tree = parser.parse(ksy);
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		const result = getHover(tree.rootNode, doc, offset + 2, new Map(), enumDocs);
+		expect(result).not.toBeNull();
+		const content = (result!.contents as any).value;
+		expect(content).toContain('**sections**');
+		expect(content).toContain('enum');
+	});
+
+	it('returns null for enum name not in enumDocs', () => {
+		const ksy = `meta:\n  id: t\nseq:\n  - id: x\n    type: u1\n    enum: unknown_enum`;
+		const result = hover(ksy, 'unknown_enum', new Map(), new Map());
+		expect(result).toBeNull();
+	});
 });

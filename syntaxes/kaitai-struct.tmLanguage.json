@@ -5,6 +5,7 @@
 		{ "include": "#comment" },
 		{ "include": "#block-scalar" },
 		{ "include": "#expression-key-value" },
+		{ "include": "#cases-entry" },
 		{ "include": "#key-value" },
 		{ "include": "#sequence-item" },
 		{ "include": "#scalar" }
@@ -34,6 +35,28 @@
 						"4": { "name": "keyword.operator.block-scalar.kaitai-struct" }
 					},
 					"contentName": "string.unquoted.block.kaitai-struct"
+				},
+				{
+					"comment": "Top-level expression key (to-string) with block scalar — content highlighted as Kaitai expression",
+					"begin": "^(to-string)(:)[ \\t]+([|>][+-]?)[ \\t]*$",
+					"end": "^(?![ \\t]|[ \\t]*$)",
+					"beginCaptures": {
+						"1": { "name": "keyword.other.top-level.kaitai-struct" },
+						"2": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"3": { "name": "keyword.operator.block-scalar.kaitai-struct" }
+					},
+					"patterns": [{ "include": "#expression" }]
+				},
+				{
+					"comment": "Indented expression key with block scalar — content highlighted as Kaitai expression",
+					"begin": "^([ \\t]+)(size|repeat-expr|repeat-until|if|pos|io|value|switch-on)(:)[ \\t]+([|>][+-]?)[ \\t]*$",
+					"end": "^(?!\\1[ \\t]|[ \\t]*$)",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"4": { "name": "keyword.operator.block-scalar.kaitai-struct" }
+					},
+					"patterns": [{ "include": "#expression" }]
 				},
 				{
 					"comment": "Any other key with block scalar — indentation back-reference prevents false quote matches in content",
@@ -104,8 +127,35 @@
 					"patterns": [
 						{ "include": "#expression" }
 					]
+				},
+				{
+					"comment": "Type key with parameterized call: type: typename(args) — only fires when ( follows the type name",
+					"begin": "^([ \\t]+)(type)(:)[ \\t]+([a-zA-Z_][a-zA-Z0-9_:]*)(?=[ \\t]*\\()",
+					"end": "[ \\t]*(#.*)?$",
+					"beginCaptures": {
+						"2": { "name": "entity.name.tag.attribute.kaitai-struct" },
+						"3": { "name": "punctuation.separator.key-value.kaitai-struct" },
+						"4": { "name": "entity.name.type.kaitai-struct" }
+					},
+					"endCaptures": {
+						"1": { "name": "comment.line.number-sign.kaitai-struct" }
+					},
+					"patterns": [
+						{ "include": "#expression" }
+					]
 				}
 			]
+		},
+		"cases-entry": {
+			"comment": "Key in a cases: mapping — enum path (sections::clump) followed by colon and type value",
+			"match": "^([ \\t]+)([a-zA-Z_][a-zA-Z0-9_]*)(::)([a-zA-Z_][a-zA-Z0-9_]*)(:)([ \\t]+)([a-zA-Z_][a-zA-Z0-9_]*)?",
+			"captures": {
+				"2": { "name": "variable.other.enum-name.kaitai-struct" },
+				"3": { "name": "punctuation.accessor.double-colon.kaitai-struct" },
+				"4": { "name": "variable.other.enum-value.kaitai-struct" },
+				"5": { "name": "punctuation.separator.key-value.kaitai-struct" },
+				"7": { "name": "entity.name.type.kaitai-struct" }
+			}
 		},
 		"expression": {
 			"patterns": [

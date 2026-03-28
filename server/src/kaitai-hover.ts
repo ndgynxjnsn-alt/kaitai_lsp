@@ -1,6 +1,7 @@
 import { Hover, MarkupKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
+import { EXPRESSION_KEYS } from './kaitai-expression';
 
 /**
  * Descriptions extracted from ksy_schema.json.
@@ -159,29 +160,34 @@ function findKeyPairAtOffset(root: Parser.SyntaxNode, offset: number): { pair: P
 /**
  * Given a YAML value node (scalar) and a document offset, extract the Kaitai
  * identifier (word) that the cursor is positioned on.
- * Returns { word, startIndex, endIndex } where indices are into the document.
+ * Returns { word, startIndex, endIndex, keyName } where indices are into the document.
  */
 function findIdentifierAtOffset(
 	root: Parser.SyntaxNode,
 	offset: number
-): { word: string; startIndex: number; endIndex: number } | null {
+): { word: string; startIndex: number; endIndex: number; keyName: string } | null {
 	const node = root.descendantForIndex(offset);
 	if (!node) return null;
 
 	// Walk up to find if we're in the VALUE of a block_mapping_pair
 	let current: Parser.SyntaxNode | null = node;
+	let pair: Parser.SyntaxNode | null = null;
 	while (current) {
 		if (current.type === 'block_mapping_pair') {
-			const keyNode = current.childForFieldName('key');
-			const valueNode = current.childForFieldName('value');
-			// Only proceed if cursor is on the value side, not the key
-			if (!keyNode || offset <= keyNode.endIndex) return null;
-			if (!valueNode) return null;
+			pair = current;
 			break;
 		}
 		current = current.parent;
 	}
-	if (!current) return null;
+	if (!pair) return null;
+
+	const keyNode = pair.childForFieldName('key');
+	const valueNode = pair.childForFieldName('value');
+	// Only proceed if cursor is on the value side, not the key
+	if (!keyNode || offset <= keyNode.endIndex) return null;
+	if (!valueNode) return null;
+
+	const keyName = extractScalarText(keyNode) ?? '';
 
 	// Find the word boundary around the cursor within the node's text
 	const text = node.text;
@@ -198,6 +204,7 @@ function findIdentifierAtOffset(
 				word: m[0],
 				startIndex: node.startIndex + start,
 				endIndex: node.startIndex + end,
+				keyName,
 			};
 		}
 	}
@@ -208,7 +215,8 @@ export function getHover(
 	root: Parser.SyntaxNode,
 	textDocument: TextDocument,
 	offset: number,
-	symbolDocs: Map<string, string>
+	symbolDocs: Map<string, string>,
+	enumDocs: Map<string, string>
 ): Hover | null {
 	// 1. Key hover — schema descriptions for recognised keys
 	const result = findKeyPairAtOffset(root, offset);
@@ -229,11 +237,31 @@ export function getHover(
 				},
 			};
 		}
+
+		// Enum path key (e.g. sections::clump in a cases mapping)
+		if (key.includes('::')) {
+			const enumName = key.split('::')[0];
+			const enumDoc = enumDocs.get(enumName);
+			if (enumDoc) {
+				const keyNode = pair.childForFieldName('key')!;
+				return {
+					contents: {
+						kind: MarkupKind.Markdown,
+						value: `**${enumName}** _(enum)_\n\n${enumDoc}`,
+					},
+					range: {
+						start: textDocument.positionAt(keyNode.startIndex),
+						end: textDocument.positionAt(keyNode.endIndex),
+					},
+				};
+			}
+		}
 	}
 
-	// 2. Identifier hover — doc strings for field/instance identifiers in expressions
+	// 2. Identifier hover — doc strings and enum descriptions for identifiers in values
 	const ident = findIdentifierAtOffset(root, offset);
 	if (ident) {
+		// 2a. Field/instance doc string
 		const doc = symbolDocs.get(ident.word);
 		if (doc) {
 			return {
@@ -246,6 +274,23 @@ export function getHover(
 					end: textDocument.positionAt(ident.endIndex),
 				},
 			};
+		}
+
+		// 2b. Enum hover — for 'enum:' values and expression-key identifiers that are enum names
+		if (ident.keyName === 'enum' || EXPRESSION_KEYS.has(ident.keyName)) {
+			const enumDoc = enumDocs.get(ident.word);
+			if (enumDoc) {
+				return {
+					contents: {
+						kind: MarkupKind.Markdown,
+						value: `**${ident.word}** _(enum)_\n\n${enumDoc}`,
+					},
+					range: {
+						start: textDocument.positionAt(ident.startIndex),
+						end: textDocument.positionAt(ident.endIndex),
+					},
+				};
+			}
 		}
 	}
 

@@ -330,3 +330,143 @@ describe('nested types field search', () => {
 		expect(highlighted(ksy, result)).toBe('inner_field');
 	});
 });
+
+describe('parameterized type reference', () => {
+	const ksy = [
+		'meta:',
+		'  id: test',
+		'  endian: le',
+		'seq:',
+		'  - id: layers',
+		'    type: uv_layer(_parent.num_vertices)',
+		'types:',
+		'  uv_layer:',
+		'    params:',
+		'      - id: count',
+		'        type: u4',
+		'    seq:',
+		'      - id: data',
+		'        type: u1',
+		'        repeat: expr',
+		'        repeat-expr: count',
+	].join('\n');
+
+	it('navigates to type definition ignoring parameter expression', () => {
+		// cursor on 'uv_layer' in 'type: uv_layer(_parent.num_vertices)'
+		const offset = ksy.indexOf('uv_layer(_parent');
+		const result = definitionAt(ksy, offset + 2);
+		expect(result).not.toBeNull();
+		expect(highlighted(ksy, result)).toBe('uv_layer');
+		// must point into types section
+		const typesSectionIndex = ksy.indexOf('types:');
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		expect(doc.offsetAt(result!.range.start)).toBeGreaterThan(typesSectionIndex);
+	});
+
+	it('returns null for built-in types with arguments (edge case)', () => {
+		const ksy2 = [
+			'meta:',
+			'  id: test',
+			'  endian: le',
+			'seq:',
+			'  - id: foo',
+			'    type: u4',
+		].join('\n');
+		expect(definition(ksy2, 'u4')).toBeNull();
+	});
+});
+
+describe('cases mapping value → type definition', () => {
+	const ksy = [
+		'meta:',
+		'  id: test',
+		'  endian: le',
+		'seq:',
+		'  - id: code',
+		'    type: u4',
+		'  - id: body',
+		'    type:',
+		'      switch-on: code',
+		'      cases:',
+		'        1: struct_a',
+		'        2: struct_b',
+		'types:',
+		'  struct_a:',
+		'    seq:',
+		'      - id: x',
+		'        type: u1',
+		'  struct_b:',
+		'    seq:',
+		'      - id: y',
+		'        type: u1',
+	].join('\n');
+
+	it('navigates from cases value to type definition', () => {
+		// Find 'struct_a' as the VALUE after '1: ' in the cases mapping
+		const casesOffset = ksy.indexOf('cases:');
+		const offset = ksy.indexOf('struct_a', casesOffset);
+		const result = definitionAt(ksy, offset + 2);
+		expect(result).not.toBeNull();
+		expect(highlighted(ksy, result)).toBe('struct_a');
+		const typesSectionIndex = ksy.indexOf('types:');
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		expect(doc.offsetAt(result!.range.start)).toBeGreaterThan(typesSectionIndex);
+	});
+});
+
+describe('enum path key → enum definition', () => {
+	const ksy = [
+		'meta:',
+		'  id: test',
+		'  endian: le',
+		'seq:',
+		'  - id: code',
+		'    type: u4',
+		'  - id: body',
+		'    type:',
+		'      switch-on: code',
+		'      cases:',
+		'        sections::clump: some_type',
+		'enums:',
+		'  sections:',
+		'    1: struct',
+		'    2: clump',
+		'types:',
+		'  some_type:',
+		'    seq:',
+		'      - id: x',
+		'        type: u1',
+	].join('\n');
+
+	it('navigates from enum path key (sections::clump) to enum definition', () => {
+		// cursor on 'sections' in the key 'sections::clump'
+		const offset = ksy.lastIndexOf('sections::clump');
+		const result = definitionAt(ksy, offset + 2);
+		expect(result).not.toBeNull();
+		expect(highlighted(ksy, result)).toBe('sections');
+		const enumsSectionIndex = ksy.indexOf('enums:');
+		const doc = TextDocument.create('file:///test.ksy', 'kaitai-struct', 1, ksy);
+		expect(doc.offsetAt(result!.range.start)).toBeGreaterThan(enumsSectionIndex);
+	});
+
+	it('expression fallback: navigates to enum when field not found', () => {
+		// 'sections' in an if: expression where no field named 'sections' exists
+		const ksy2 = [
+			'meta:',
+			'  id: test',
+			'  endian: le',
+			'seq:',
+			'  - id: x',
+			'    type: u1',
+			'    if: sections',
+			'enums:',
+			'  sections:',
+			'    1: a',
+		].join('\n');
+		// Find 'sections' in 'if: sections' (before the enums: definition)
+		const ifLineOffset = ksy2.indexOf('if: sections') + 'if: '.length;
+		const result = definitionAt(ksy2, ifLineOffset + 2);
+		expect(result).not.toBeNull();
+		expect(highlighted(ksy2, result)).toBe('sections');
+	});
+});

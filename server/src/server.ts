@@ -19,7 +19,7 @@ import * as yaml from 'js-yaml';
 import { validateKaitai } from './kaitai-validation';
 import { getHover } from './kaitai-hover';
 import { getDefinition } from './kaitai-definition';
-import { compileAndGetDiagnostics, buildSymbolDocs } from './kaitai-compiler';
+import { compileAndGetDiagnostics, buildSymbolDocs, buildEnumDocs } from './kaitai-compiler';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -29,6 +29,7 @@ let parser: Parser | null = null;
 const COMPILER_DEBOUNCE_MS = 1000;
 const compilerTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const documentSymbolDocs = new Map<string, Map<string, string>>();
+const documentEnumDocs = new Map<string, Map<string, string>>();
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
 	connection.console.log('Kaitai Struct LSP: Initializing...');
@@ -81,7 +82,8 @@ connection.onHover((params: HoverParams): Hover | null => {
 	const tree = parser.parse(text);
 	const offset = textDocument.offsetAt(params.position);
 	const symbolDocs = documentSymbolDocs.get(params.textDocument.uri) ?? new Map();
-	return getHover(tree.rootNode, textDocument, offset, symbolDocs);
+	const enumDocs = documentEnumDocs.get(params.textDocument.uri) ?? new Map();
+	return getHover(tree.rootNode, textDocument, offset, symbolDocs, enumDocs);
 });
 
 async function validateDocument(textDocument: TextDocument): Promise<void> {
@@ -93,12 +95,13 @@ async function validateDocument(textDocument: TextDocument): Promise<void> {
 	const tree = parser.parse(text);
 	const diagnostics: Diagnostic[] = [];
 
-	// Build symbol doc table eagerly (not debounced) so hover is always up to date
+	// Build symbol/enum doc tables eagerly (not debounced) so hover is always up to date
 	try {
 		const ksyObject = yaml.load(text);
 		documentSymbolDocs.set(textDocument.uri, buildSymbolDocs(ksyObject));
+		documentEnumDocs.set(textDocument.uri, buildEnumDocs(ksyObject));
 	} catch {
-		// YAML errors handled by tree-sitter; leave existing table in place
+		// YAML errors handled by tree-sitter; leave existing tables in place
 	}
 
 	collectErrors(tree.rootNode, textDocument, diagnostics);

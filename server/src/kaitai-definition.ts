@@ -107,12 +107,12 @@ function findMappingInItem(item: Parser.SyntaxNode): Parser.SyntaxNode | null {
 
 /**
  * Find the word (identifier) at cursor within the value side of a block_mapping_pair.
- * Returns { keyName, word, fullValue } where fullValue is the complete value text.
+ * Returns { keyName, word, fullValue, pair } where fullValue is the complete value text.
  */
 function findValueContext(
 	root: Parser.SyntaxNode,
 	offset: number
-): { keyName: string; word: string; fullValue: string; valueNode: Parser.SyntaxNode } | null {
+): { keyName: string; word: string; fullValue: string; valueNode: Parser.SyntaxNode; pair: Parser.SyntaxNode } | null {
 	const node = root.descendantForIndex(offset);
 	if (!node) return null;
 
@@ -147,10 +147,45 @@ function findValueContext(
 		const start = m.index;
 		const end = start + m[0].length;
 		if (start <= rel && rel <= end) {
-			return { keyName, word: m[0], fullValue, valueNode };
+			return { keyName, word: m[0], fullValue, valueNode, pair };
 		}
 	}
 	return null;
+}
+
+/**
+ * Find the block_mapping_pair whose KEY the cursor is on.
+ * Returns { pair, key } or null if cursor is not on a key.
+ */
+function findKeyAtOffset(root: Parser.SyntaxNode, offset: number): { pair: Parser.SyntaxNode; key: string } | null {
+	let node = root.descendantForIndex(offset);
+	if (!node) return null;
+
+	let current: Parser.SyntaxNode | null = node;
+	while (current) {
+		if (current.type === 'block_mapping_pair') {
+			const keyNode = current.childForFieldName('key');
+			if (keyNode && offset >= keyNode.startIndex && offset <= keyNode.endIndex) {
+				const key = extractScalarText(keyNode);
+				if (key) return { pair: current, key };
+			}
+			return null;
+		}
+		current = current.parent;
+	}
+	return null;
+}
+
+/** Returns true if the given pair is nested inside a 'cases:' mapping. */
+function isInsideCasesMapping(pair: Parser.SyntaxNode): boolean {
+	let node: Parser.SyntaxNode | null = pair.parent;
+	while (node) {
+		if (node.type === 'block_mapping_pair') {
+			if (getKeyText(node) === 'cases') return true;
+		}
+		node = node.parent;
+	}
+	return false;
 }
 
 function locationOfKeyNode(keyNode: Parser.SyntaxNode, textDocument: TextDocument): Location {
@@ -217,8 +252,12 @@ function findTypeDefinition(
 ): Location | null {
 	if (BUILTIN_TYPES.has(fullValue)) return null;
 
+	// Strip parameter expression: uv_layer(_parent.num_vertices) → uv_layer
+	const baseType = fullValue.replace(/\(.*$/, '').trim();
+	if (BUILTIN_TYPES.has(baseType)) return null;
+
 	// Determine which path prefix to resolve based on cursor position
-	const parts = fullValue.split('::');
+	const parts = baseType.split('::');
 	const cursorSegIndex = parts.indexOf(word);
 	// If word not found in path (shouldn't happen), resolve the whole path
 	const pathToResolve = cursorSegIndex >= 0 ? parts.slice(0, cursorSegIndex + 1) : parts;
@@ -346,21 +385,39 @@ export function getDefinition(
 	textDocument: TextDocument,
 	offset: number
 ): Location | null {
+	// Value-side navigation
 	const ctx = findValueContext(root, offset);
-	if (!ctx) return null;
+	if (ctx) {
+		if (ctx.keyName === 'type') {
+			return findTypeDefinition(root, ctx.word, ctx.fullValue, textDocument);
+		}
 
-	if (ctx.keyName === 'type') {
-		return findTypeDefinition(root, ctx.word, ctx.fullValue, textDocument);
+		if (ctx.keyName === 'enum') {
+			return findEnumDefinition(root, ctx.fullValue, textDocument);
+		}
+
+		if (EXPRESSION_KEYS.has(ctx.keyName)) {
+			const docMapping = findDocumentMapping(root);
+			if (!docMapping) return null;
+			// Try field definition first, fall back to enum
+			const loc = searchFieldInMapping(docMapping, ctx.word, textDocument);
+			if (loc) return loc;
+			return findEnumDefinition(root, ctx.word, textDocument);
+		}
+
+		// Inside a cases: mapping — value is a type name
+		if (isInsideCasesMapping(ctx.pair)) {
+			return findTypeDefinition(root, ctx.word, ctx.fullValue, textDocument);
+		}
+
+		return null;
 	}
 
-	if (ctx.keyName === 'enum') {
-		return findEnumDefinition(root, ctx.fullValue, textDocument);
-	}
-
-	if (EXPRESSION_KEYS.has(ctx.keyName)) {
-		const docMapping = findDocumentMapping(root);
-		if (!docMapping) return null;
-		return searchFieldInMapping(docMapping, ctx.word, textDocument);
+	// Key-side navigation: enum path keys (e.g. sections::clump in cases)
+	const keyResult = findKeyAtOffset(root, offset);
+	if (keyResult && keyResult.key.includes('::')) {
+		const enumName = keyResult.key.split('::')[0];
+		return findEnumDefinition(root, enumName, textDocument);
 	}
 
 	return null;
