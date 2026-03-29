@@ -1,5 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import { pathToFileURL } from 'url';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
 import { getDefinition } from './kaitai-definition';
@@ -468,5 +471,101 @@ describe('enum path key → enum definition', () => {
 		const result = definitionAt(ksy2, ifLineOffset + 2);
 		expect(result).not.toBeNull();
 		expect(highlighted(ksy2, result)).toBe('sections');
+	});
+});
+
+// ---- Import navigation ----
+
+describe('import → file navigation', () => {
+	let tmpDir: string;
+
+	beforeAll(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaitai-def-test-'));
+		fs.mkdirSync(path.join(tmpDir, 'common'));
+		fs.mkdirSync(path.join(tmpDir, 'archive'));
+		fs.writeFileSync(
+			path.join(tmpDir, 'common', 'dos_datetime.ksy'),
+			'meta:\n  id: dos_datetime\n'
+		);
+		fs.writeFileSync(
+			path.join(tmpDir, 'sibling.ksy'),
+			'meta:\n  id: sibling\n'
+		);
+	});
+
+	afterAll(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	function defInFile(ksy: string, filePath: string, substring: string) {
+		const offset = ksy.indexOf(substring);
+		if (offset === -1) throw new Error(`'${substring}' not found`);
+		const uri = pathToFileURL(filePath).href;
+		const tree = parser.parse(ksy);
+		const doc = TextDocument.create(uri, 'kaitai-struct', 1, ksy);
+		return getDefinition(tree.rootNode, doc, offset + 1);
+	}
+
+	it('navigates to imported file via absolute-style path (/common/...)', () => {
+		const ksy = [
+			'meta:',
+			'  id: zip',
+			'  imports:',
+			'    - /common/dos_datetime',
+			'seq:',
+			'  - id: foo',
+			'    type: u1',
+		].join('\n');
+		const result = defInFile(ksy, path.join(tmpDir, 'archive', 'zip.ksy'), '/common/dos_datetime');
+		expect(result).not.toBeNull();
+		expect(result!.uri).toBe(pathToFileURL(path.join(tmpDir, 'common', 'dos_datetime.ksy')).href);
+		expect(result!.range.start.line).toBe(0);
+	});
+
+	it('navigates to imported file via relative path (../sibling)', () => {
+		const ksy = [
+			'meta:',
+			'  id: test',
+			'  imports:',
+			'    - ../sibling',
+			'seq:',
+			'  - id: foo',
+			'    type: u1',
+		].join('\n');
+		const result = defInFile(ksy, path.join(tmpDir, 'archive', 'test.ksy'), '../sibling');
+		expect(result).not.toBeNull();
+		expect(result!.uri).toBe(pathToFileURL(path.join(tmpDir, 'sibling.ksy')).href);
+	});
+
+	it('returns null for an import that cannot be resolved', () => {
+		const ksy = [
+			'meta:',
+			'  id: test',
+			'  imports:',
+			'    - /nonexistent/module',
+		].join('\n');
+		const result = defInFile(ksy, path.join(tmpDir, 'archive', 'test.ksy'), '/nonexistent/module');
+		expect(result).toBeNull();
+	});
+
+	it('does not trigger import navigation for seq items', () => {
+		// Cursor on a sequence item under seq: must not be treated as an import
+		const ksy = [
+			'meta:',
+			'  id: test',
+			'seq:',
+			'  - id: foo',
+			'    type: u1',
+		].join('\n');
+		const uri = pathToFileURL(path.join(tmpDir, 'test.ksy')).href;
+		const tree = parser.parse(ksy);
+		const doc = TextDocument.create(uri, 'kaitai-struct', 1, ksy);
+		// Cursor on 'foo' inside the seq sequence item
+		const offset = ksy.indexOf('foo');
+		const result = getDefinition(tree.rootNode, doc, offset + 1);
+		// Should not navigate to a .ksy file
+		if (result !== null) {
+			expect(result.uri).not.toMatch(/\.ksy$/);
+		}
 	});
 });

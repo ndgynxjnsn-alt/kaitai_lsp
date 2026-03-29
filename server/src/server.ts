@@ -22,6 +22,7 @@ import { validateKaitai } from './kaitai-validation';
 import { getHover } from './kaitai-hover';
 import { getDefinition } from './kaitai-definition';
 import { compileAndGetDiagnostics, buildSymbolDocs, buildEnumDocs } from './kaitai-compiler';
+import { loadImportedObjects } from './kaitai-imports';
 import { getCompletions } from './kaitai-completion';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -112,11 +113,18 @@ async function validateDocument(textDocument: TextDocument): Promise<void> {
 	const tree = parser.parse(text);
 	const diagnostics: Diagnostic[] = [];
 
-	// Build symbol/enum doc tables eagerly (not debounced) so hover is always up to date
+	// Build symbol/enum doc tables eagerly (not debounced) so hover is always up to date.
+	// Also merge docs from transitively imported files.
 	try {
 		const ksyObject = yaml.load(text);
-		documentSymbolDocs.set(textDocument.uri, buildSymbolDocs(ksyObject));
-		documentEnumDocs.set(textDocument.uri, buildEnumDocs(ksyObject));
+		const symbolDocs = buildSymbolDocs(ksyObject);
+		const enumDocs = buildEnumDocs(ksyObject);
+		for (const imported of loadImportedObjects(ksyObject, textDocument.uri)) {
+			for (const [k, v] of buildSymbolDocs(imported)) symbolDocs.set(k, v);
+			for (const [k, v] of buildEnumDocs(imported)) enumDocs.set(k, v);
+		}
+		documentSymbolDocs.set(textDocument.uri, symbolDocs);
+		documentEnumDocs.set(textDocument.uri, enumDocs);
 	} catch {
 		// YAML errors handled by tree-sitter; leave existing tables in place
 	}

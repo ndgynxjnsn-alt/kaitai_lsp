@@ -224,6 +224,26 @@ describe('buildSymbolDocs', () => {
 		const docs = buildSymbolDocs(ksy);
 		expect(docs.has('nodoc')).toBe(false);
 	});
+
+	it('includes top-level type doc under meta.id', () => {
+		const ksy = yaml.load([
+			'meta:',
+			'  id: dos_datetime',
+			'doc: |',
+			'  MS-DOS date and time are packed 16-bit values.',
+			'seq:',
+			'  - id: date',
+			'    type: u2',
+		].join('\n'));
+		const docs = buildSymbolDocs(ksy);
+		expect(docs.get('dos_datetime')).toContain('MS-DOS date and time');
+	});
+
+	it('does not add meta.id entry when there is no top-level doc', () => {
+		const ksy = yaml.load('meta:\n  id: nodoc_type\nseq:\n  - id: x\n    type: u1');
+		const docs = buildSymbolDocs(ksy);
+		expect(docs.has('nodoc_type')).toBe(false);
+	});
 });
 
 describe('buildEnumDocs', () => {

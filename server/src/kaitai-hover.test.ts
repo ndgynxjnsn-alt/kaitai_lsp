@@ -327,3 +327,37 @@ describe('enum hover', () => {
 		expect(result).toBeNull();
 	});
 });
+
+describe('import path hover', () => {
+	const importedDoc = 'MS-DOS date and time are packed 16-bit values that specify local date/time.';
+	// symbolDocs simulates what buildSymbolDocs produces after merging imported files:
+	// the imported type's meta.id ('dos_datetime') is keyed to its top-level doc.
+	const symbolDocs = new Map([['dos_datetime', importedDoc]]);
+
+	const ksy = [
+		'meta:',
+		'  id: zip',
+		'  imports:',
+		'    - /common/dos_datetime',
+	].join('\n');
+
+	it('shows imported type doc when hovering the type name in the import path', () => {
+		// Cursor on 'dos_datetime' (the identifier portion of '/common/dos_datetime')
+		const result = hover(ksy, 'dos_datetime', symbolDocs);
+		expect(result).not.toBeNull();
+		const content = (result!.contents as any).value as string;
+		expect(content).toContain('**dos_datetime**');
+		expect(content).toContain('MS-DOS');
+	});
+
+	it('returns null when hovering the directory component of the import path', () => {
+		// 'common' is not a known symbol — no doc expected
+		const result = hover(ksy, 'common', symbolDocs);
+		expect(result).toBeNull();
+	});
+
+	it('returns null when symbolDocs has no entry for the imported type', () => {
+		const result = hover(ksy, 'dos_datetime', new Map());
+		expect(result).toBeNull();
+	});
+});

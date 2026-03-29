@@ -2,6 +2,7 @@ import { Location } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
 import { EXPRESSION_KEYS } from './kaitai-expression';
+import { resolveImportToUri } from './kaitai-imports';
 
 const BUILTIN_TYPES = new Set([
 	'u1', 'u2', 'u4', 'u8',
@@ -380,11 +381,57 @@ function searchFieldInMapping(
 	return null;
 }
 
+/**
+ * If the cursor is on a value inside `meta: imports:`, return the raw import
+ * string (e.g. `/common/dos_datetime`). Otherwise return null.
+ */
+function findImportAtCursor(root: Parser.SyntaxNode, offset: number): string | null {
+	let node = root.descendantForIndex(offset);
+	if (!node) return null;
+
+	// Walk up to the containing block_sequence_item
+	let current: Parser.SyntaxNode | null = node;
+	while (current && current.type !== 'block_sequence_item') {
+		current = current.parent;
+	}
+	if (!current) return null;
+	const seqItem = current;
+
+	// The sequence's parent chain should include a block_mapping_pair with key 'imports'
+	current = seqItem.parent;
+	while (current && current.type !== 'block_mapping_pair') {
+		current = current.parent;
+	}
+	if (!current || getKeyText(current) !== 'imports') return null;
+
+	// That 'imports' pair must itself be nested under a 'meta' pair
+	current = current.parent;
+	while (current && current.type !== 'block_mapping_pair') {
+		current = current.parent;
+	}
+	if (!current || getKeyText(current) !== 'meta') return null;
+
+	// Extract the scalar text from the sequence item
+	for (const child of seqItem.children) {
+		const text = extractScalarText(child);
+		if (text !== null) return text;
+	}
+	return null;
+}
+
 export function getDefinition(
 	root: Parser.SyntaxNode,
 	textDocument: TextDocument,
 	offset: number
 ): Location | null {
+	// Import navigation: cursor on a value inside meta.imports
+	const importName = findImportAtCursor(root, offset);
+	if (importName !== null) {
+		const uri = resolveImportToUri(importName, textDocument.uri);
+		if (!uri) return null;
+		return { uri, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } } };
+	}
+
 	// Value-side navigation
 	const ctx = findValueContext(root, offset);
 	if (ctx) {

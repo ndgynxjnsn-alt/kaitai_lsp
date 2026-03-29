@@ -2,6 +2,10 @@ import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import Parser from 'web-tree-sitter';
 import * as yaml from 'js-yaml';
+import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import { resolveImportPath } from './kaitai-imports';
 
 // The KSC npm package uses a UMD export
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -11,11 +15,27 @@ interface IYamlImporter {
 	importYaml(name: string, mode: string): Promise<any>;
 }
 
-const nullImporter: IYamlImporter = {
-	importYaml(_name: string, _mode: string): Promise<any> {
-		return Promise.reject(new Error(`Import not supported in LSP`));
-	},
-};
+
+function createFileImporter(documentUri: string): IYamlImporter {
+	let fromDir: string;
+	try {
+		fromDir = path.dirname(fileURLToPath(documentUri));
+	} catch {
+		// Not a file:// URI (e.g. untitled document) — imports cannot be resolved
+		return { importYaml: (_n, _m) => Promise.reject(new Error(`Cannot resolve imports for non-file document`)) };
+	}
+
+	return {
+		async importYaml(name: string, _mode: string): Promise<any> {
+			const filePath = resolveImportPath(name, fromDir);
+			if (!filePath) {
+				throw new Error(`Cannot find import '${name}' (searched upward from ${fromDir})`);
+			}
+			const content = fs.readFileSync(filePath, 'utf-8');
+			return yaml.load(content);
+		},
+	};
+}
 
 /**
  * Parse the error message from the Kaitai Struct Compiler.
@@ -224,7 +244,7 @@ export function buildEnumDocs(ksyObject: any): Map<string, string> {
 
 /**
  * Walk the parsed KSY object and collect all id → doc mappings across seq,
- * instances, and nested types. Cross-file imports are not resolved.
+ * instances, and nested types.
  */
 export function buildSymbolDocs(ksyObject: any): Map<string, string> {
 	const docs = new Map<string, string>();
@@ -240,6 +260,11 @@ export function buildSymbolDocs(ksyObject: any): Map<string, string> {
 
 	function processType(t: any) {
 		if (!t || typeof t !== 'object') return;
+		// Top-level type doc: store under meta.id so hover works on import paths
+		// and on type references that resolve to imported types.
+		if (typeof t.doc === 'string' && typeof t.meta?.id === 'string') {
+			docs.set(t.meta.id, t.doc);
+		}
 		processAttrs(t.seq);
 		if (t.instances && typeof t.instances === 'object') {
 			for (const [id, inst] of Object.entries(t.instances)) {
@@ -276,8 +301,9 @@ export async function compileAndGetDiagnostics(
 
 	if (!ksyObject || typeof ksyObject !== 'object') return diagnostics;
 
+	const importer = createFileImporter(textDocument.uri);
 	try {
-		await KaitaiStructCompiler.compile('javascript', ksyObject, nullImporter, false);
+		await KaitaiStructCompiler.compile('javascript', ksyObject, importer, false);
 	} catch (e: any) {
 		const message = e?.message ?? String(e);
 
