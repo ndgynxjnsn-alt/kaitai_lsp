@@ -4,3 +4,11 @@ client/out/
 server/out/
 *.js.map
 .vscode-test/
+vscode-yaml/
+tree-sitter
+tree-sitter-yaml
+kaitai_struct_formats
+kaitai_struct_webide
+vscode-languageserver-node
+wasm
+yaml-language-server
