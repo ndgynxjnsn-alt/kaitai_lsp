@@ -1,8 +1,16 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 async function build() {
+	// Build the webview (Vite project)
+	execSync('npm install && npm run build', {
+		cwd: path.join(__dirname, 'webview'),
+		stdio: 'inherit',
+	});
+
+
 	// Bundle the server
 	await esbuild.build({
 		entryPoints: ['server/src/server.ts'],

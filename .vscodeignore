@@ -1,6 +1,14 @@
 node_modules/
 client/node_modules/
 server/node_modules/
+webview/node_modules/
+webview/src/
+webview/index.html
+webview/vite.config.ts
+webview/tsconfig.json
+webview/package.json
+webview/package-lock.json
+kaitai
 server/src/
 client/src/
 server/out/*.test.js

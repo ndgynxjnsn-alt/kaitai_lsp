@@ -1,0 +1,237 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #1e1e1e;
+  --surface: #252526;
+  --surface-2: #2d2d30;
+  --accent: #007acc;
+  --text: #d4d4d4;
+  --text-muted: #858585;
+  --border: #3c3c3c;
+  --success: #4ec9b0;
+  --error: #f44747;
+  --highlight: rgba(0, 122, 204, 0.3);
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.viewer {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.viewer-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.viewer-hex,
+.viewer-tree {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.viewer-hex {
+  border-right: 1px solid var(--border);
+}
+
+.pane-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.viewer-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 24px;
+  line-height: 1.8;
+}
+
+.viewer-status {
+  padding: 12px 16px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.viewer-error {
+  padding: 12px 16px;
+  color: var(--error);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
+
+/* ── Hex viewer ── */
+.hex-viewer {
+  flex: 1;
+  overflow: auto;
+  user-select: none;
+  cursor: default;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-ligatures: none;
+  background: var(--bg);
+}
+
+.hv-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.hv-hex-header {
+  display: inline-flex;
+}
+
+.hv-col-hdr {
+  display: inline-block;
+  width: 24px;
+  text-align: center;
+}
+
+.hv-body {
+  padding: 2px 0;
+}
+
+.hv-row {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 12px;
+}
+
+.hv-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hv-addr {
+  display: inline-block;
+  width: 72px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hv-hex {
+  display: inline-flex;
+}
+
+.hv-cell {
+  display: inline-block;
+  width: 24px;
+  text-align: center;
+  padding: 1px 0;
+  border-radius: 2px;
+  transition: background 0.08s;
+}
+
+.hv-cell:hover {
+  background: var(--surface-2);
+}
+
+.hv-col-gap {
+  margin-left: 8px;
+}
+
+.hv-highlighted {
+  background: var(--highlight) !important;
+  color: #fff !important;
+}
+
+/* ── Tree view ── */
+.tree-view {
+  flex: 1;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg);
+}
+
+.tree-children {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tree-row {
+  display: flex;
+  align-items: baseline;
+  padding: 1px 8px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.tree-row.expandable {
+  cursor: pointer;
+}
+
+.tree-row:hover {
+  background: var(--surface-2);
+}
+
+.tree-row-highlighted {
+  background: var(--highlight) !important;
+  outline: 1px solid rgba(0, 122, 204, 0.5);
+  outline-offset: -1px;
+}
+
+.tree-toggle {
+  display: inline-block;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.tree-toggle-spacer {
+  display: inline-block;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.node-name  { color: #9cdcfe; }
+.node-class { color: #4ec9b0; }
+.node-meta  { color: var(--text-muted); }
+.node-value { color: var(--text); font-weight: 600; }
+.node-int   { color: #b5cea8; }
+.node-string { color: #ce9178; }
+.node-bytes { color: #b5cea8; font-size: 12px; }
+.node-bool  { color: #569cd6; font-weight: 600; }
+.node-null  { color: #569cd6; font-style: italic; }

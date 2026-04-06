@@ -1,11 +1,13 @@
 import * as path from 'path';
 import { ExtensionContext } from 'vscode';
+import * as vscode from 'vscode';
 import {
 	LanguageClient,
 	LanguageClientOptions,
 	ServerOptions,
 	TransportKind,
 } from 'vscode-languageclient/node';
+import { KaitaiPanel } from './kaitaiPanel';
 
 let client: LanguageClient;
 
@@ -35,6 +37,16 @@ export async function activate(context: ExtensionContext): Promise<void> {
 	);
 
 	await client.start();
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('kaitai-struct.openViewer', () => {
+			KaitaiPanel.createOrShow(context);
+		}),
+		vscode.commands.registerCommand('kaitai-struct.selectBinaryFile', async () => {
+			const panel = KaitaiPanel.getInstance() ?? KaitaiPanel.createOrShow(context);
+			await panel.pickBinaryFile();
+		}),
+	);
 }
 
 export function deactivate(): Thenable<void> | undefined {

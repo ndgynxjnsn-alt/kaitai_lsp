@@ -15,11 +15,28 @@
 	"categories": [
 		"Programming Languages"
 	],
-	"activationEvents": [
-		"onLanguage:kaitai-struct"
-	],
-	"main": "./client/out/extension.js",
+"main": "./client/out/extension.js",
 	"contributes": {
+		"commands": [
+			{
+				"command": "kaitai-struct.openViewer",
+				"title": "Kaitai: Open Hex Viewer",
+				"icon": "$(symbol-file)"
+			},
+			{
+				"command": "kaitai-struct.selectBinaryFile",
+				"title": "Kaitai: Select Binary File"
+			}
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "kaitai-struct.openViewer",
+					"when": "resourceExtname == .ksy",
+					"group": "navigation"
+				}
+			]
+		},
 		"languages": [
 			{
 				"id": "kaitai-struct",
