@@ -5,10 +5,6 @@ import { ATTRIBUTE_KEYS, META_KEYS, PARAM_KEYS, TOP_LEVEL_KEYS } from './kaitai-
 import { EXPRESSION_KEYS, validateExpression } from './kaitai-expression';
 
 
-const VALID_TYPE_KEYS = new Set([
-	...TOP_LEVEL_KEYS,
-]);
-
 const VALID_ENDIAN = new Set(['le', 'be']);
 const VALID_REPEAT = new Set(['eos', 'expr', 'until']);
 
@@ -190,7 +186,7 @@ function validateTypes(
 
 			if (key.startsWith('-')) continue;
 
-			if (!VALID_TYPE_KEYS.has(key)) {
+			if (!TOP_LEVEL_KEYS.includes(key)) {
 				addDiagnostic(diagnostics, child, doc,
 					`Unknown type key '${key}'`, DiagnosticSeverity.Warning);
 				continue;
