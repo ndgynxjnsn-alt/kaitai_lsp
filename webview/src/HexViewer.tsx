@@ -1,26 +1,7 @@
-import { useMemo, useCallback, useRef } from "react";
+import { useMemo, useCallback, useRef, useState, useEffect } from "react";
 import { useHighlightStore } from "./lib/highlightStore.ts";
 import type { ByteRange } from "./lib/highlightStore.ts";
-
-const BYTES_PER_LINE = 16;
-
-/** Parse a hex string (e.g. "ca fe 00 04") into byte values. */
-function parseHexBytes(hex: string): number[] {
-  const cleaned = hex.replace(/0x/gi, "").replace(/[^0-9a-fA-F]/g, "");
-  const bytes: number[] = [];
-  for (let i = 0; i + 1 < cleaned.length; i += 2) {
-    bytes.push(parseInt(cleaned.substring(i, i + 2), 16));
-  }
-  return bytes;
-}
-
-function addrHex(offset: number): string {
-  return offset.toString(16).padStart(8, "0");
-}
-
-function byteHex(b: number): string {
-  return b.toString(16).padStart(2, "0");
-}
+import { parseHexBytes, addrHex, byteHex, bytesPerLineForWidth } from "./lib/hexUtils.ts";
 
 function isInRange(byteIdx: number, range: ByteRange | null): boolean {
   if (!range) return false;
@@ -33,6 +14,19 @@ export default function HexViewer({ hex }: { hex: string }) {
   const setSelectedRange = useHighlightStore((s) => s.setSelectedRange);
 
   const bytes = useMemo(() => parseHexBytes(hex), [hex]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [bytesPerLine, setBytesPerLine] = useState<8 | 16 | 24 | 32>(16);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setBytesPerLine(bytesPerLineForWidth(entry.contentRect.width));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const mouseDownByte = useRef<number | null>(null);
 
@@ -72,18 +66,20 @@ export default function HexViewer({ hex }: { hex: string }) {
     [setSelectedRange, updateSelection]
   );
 
+  const midpoint = bytesPerLine / 2;
+
   const rows: number[][] = [];
-  for (let i = 0; i < bytes.length; i += BYTES_PER_LINE) {
-    rows.push(bytes.slice(i, i + BYTES_PER_LINE));
+  for (let i = 0; i < bytes.length; i += bytesPerLine) {
+    rows.push(bytes.slice(i, i + bytesPerLine));
   }
 
   return (
-    <div className="hex-viewer">
+    <div className="hex-viewer" ref={containerRef}>
       <div className="hv-header">
         <span className="hv-addr">&nbsp;</span>
         <span className="hv-hex-header">
-          {Array.from({ length: BYTES_PER_LINE }, (_, i) => (
-            <span key={i} className={`hv-col-hdr${i === 8 ? " hv-col-gap" : ""}`}>
+          {Array.from({ length: bytesPerLine }, (_, i) => (
+            <span key={i} className={`hv-col-hdr${i === midpoint ? " hv-col-gap" : ""}`}>
               {i.toString(16).toUpperCase()}
             </span>
           ))}
@@ -91,7 +87,7 @@ export default function HexViewer({ hex }: { hex: string }) {
       </div>
       <div className="hv-body">
         {rows.map((row, rowIdx) => {
-          const rowOffset = rowIdx * BYTES_PER_LINE;
+          const rowOffset = rowIdx * bytesPerLine;
           return (
             <div className="hv-row" key={rowIdx}>
               <span className="hv-addr">{addrHex(rowOffset)}</span>
@@ -101,7 +97,7 @@ export default function HexViewer({ hex }: { hex: string }) {
                   const highlighted = isInRange(byteIdx, hoveredRange) || isInRange(byteIdx, selectedRange);
                   const cls =
                     "hv-cell" +
-                    (col === 8 ? " hv-col-gap" : "") +
+                    (col === midpoint ? " hv-col-gap" : "") +
                     (highlighted ? " hv-highlighted" : "");
                   return (
                     <span

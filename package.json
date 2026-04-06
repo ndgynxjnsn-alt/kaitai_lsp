@@ -1,8 +1,8 @@
 {
 	"name": "kaitai-struct-lsp",
 	"displayName": "Kaitai Struct",
-	"description": "Language Server for Kaitai Struct (.ksy) files",
-	"version": "0.1.0",
+	"description": "Kaitai Struct for VSCode",
+	"version": "0.2.0",
 	"publisher": "daniellugo",
 	"license": "MIT",
 	"repository": {

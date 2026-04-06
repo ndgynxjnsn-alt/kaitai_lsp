@@ -12,42 +12,11 @@ html, body, #root {
   font-size: var(--vscode-editor-font-size);
 }
 
-.viewer {
+.panel-full {
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.viewer-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-.viewer-hex,
-.viewer-tree {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.viewer-hex {
-  border-right: 1px solid var(--vscode-panel-border);
-}
-
-.pane-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--vscode-panelTitle-inactiveForeground);
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  background: var(--vscode-sideBar-background);
-  flex-shrink: 0;
 }
 
 .viewer-empty {
@@ -144,7 +113,6 @@ html, body, #root {
   width: 24px;
   text-align: center;
   padding: 1px 0;
-  border-radius: 2px;
   transition: background 0.08s;
 }
 
