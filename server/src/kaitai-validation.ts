@@ -1,38 +1,18 @@
-import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import Parser from 'web-tree-sitter';
+import { ATTRIBUTE_KEYS, META_KEYS, PARAM_KEYS, TOP_LEVEL_KEYS } from './kaitai-completion';
 import { EXPRESSION_KEYS, validateExpression } from './kaitai-expression';
 
-const VALID_TOP_LEVEL_KEYS = new Set([
-	'meta', 'seq', 'types', 'instances', 'enums', 'doc', 'doc-ref', 'params',
-	'to-string',
-]);
-
-const VALID_META_KEYS = new Set([
-	'id', 'endian', 'file-extension', 'application', 'title', 'license',
-	'ks-version', 'ks-debug', 'ks-opaque-types', 'imports', 'encoding', 'xref',
-	'bit-endian', 'tags',
-]);
-
-const VALID_ATTRIBUTE_KEYS = new Set([
-	'id', 'type', 'size', 'size-eos', 'repeat', 'repeat-expr', 'repeat-until',
-	'if', 'doc', 'doc-ref', 'contents', 'encoding', 'enum', 'process',
-	'pad-right', 'terminator', 'consume', 'include', 'eos-error', 'valid',
-	'pos', 'io', 'value',
-]);
 
 const VALID_TYPE_KEYS = new Set([
-	...VALID_TOP_LEVEL_KEYS,
-]);
-
-const VALID_PARAM_KEYS = new Set([
-	'id', 'type', 'doc', 'doc-ref', 'enum',
+	...TOP_LEVEL_KEYS,
 ]);
 
 const VALID_ENDIAN = new Set(['le', 'be']);
 const VALID_REPEAT = new Set(['eos', 'expr', 'until']);
 
-export const VALID_ENCODINGS = new Set([
+export const STRING_ENCODINGS = new Set([
 	'ASCII', 'UTF-8', 'UTF-16BE', 'UTF-16LE', 'UTF-32BE', 'UTF-32LE',
 	'ISO-8859-1', 'ISO-8859-2', 'ISO-8859-3', 'ISO-8859-4', 'ISO-8859-5',
 	'ISO-8859-6', 'ISO-8859-7', 'ISO-8859-8', 'ISO-8859-9', 'ISO-8859-10',
@@ -59,7 +39,7 @@ export function validateKaitai(
 
 		if (key.startsWith('-')) continue;
 
-		if (!VALID_TOP_LEVEL_KEYS.has(key)) {
+		if (!TOP_LEVEL_KEYS.includes(key)) {
 			addDiagnostic(diagnostics, pair, textDocument,
 				`Unknown top-level key '${key}'`, DiagnosticSeverity.Warning);
 			continue;
@@ -106,7 +86,7 @@ function validateMeta(
 
 		if (key.startsWith('-')) continue;
 
-		if (!VALID_META_KEYS.has(key)) {
+		if (!META_KEYS.includes(key)) {
 			addDiagnostic(diagnostics, child, doc,
 				`Unknown meta key '${key}'`, DiagnosticSeverity.Warning);
 			continue;
@@ -119,7 +99,7 @@ function validateMeta(
 		} else if (key === 'bit-endian') {
 			validateEnumValue(child, doc, diagnostics, VALID_ENDIAN, 'bit-endian');
 		} else if (key === 'encoding') {
-			validateEnumValue(child, doc, diagnostics, VALID_ENCODINGS, 'encoding', true);
+			validateEnumValue(child, doc, diagnostics, STRING_ENCODINGS, 'encoding', true);
 		}
 	}
 
@@ -150,7 +130,7 @@ function validateAttribute(
 
 		if (key.startsWith('-')) continue;
 
-		if (!VALID_ATTRIBUTE_KEYS.has(key)) {
+		if (!ATTRIBUTE_KEYS.includes(key)) {
 			addDiagnostic(diagnostics, pair, doc,
 				`Unknown attribute key '${key}'`, DiagnosticSeverity.Warning);
 			continue;
@@ -159,7 +139,7 @@ function validateAttribute(
 		if (key === 'repeat') {
 			validateEnumValue(pair, doc, diagnostics, VALID_REPEAT, 'repeat');
 		} else if (key === 'encoding') {
-			validateEnumValue(pair, doc, diagnostics, VALID_ENCODINGS, 'encoding', true);
+			validateEnumValue(pair, doc, diagnostics, STRING_ENCODINGS, 'encoding', true);
 		} else if (EXPRESSION_KEYS.has(key)) {
 			validateExpressionValue(pair, doc, diagnostics);
 		}
@@ -177,7 +157,7 @@ function validateInstance(
 
 		if (key.startsWith('-')) continue;
 
-		if (!VALID_ATTRIBUTE_KEYS.has(key)) {
+		if (!ATTRIBUTE_KEYS.includes(key)) {
 			addDiagnostic(diagnostics, pair, doc,
 				`Unknown instance key '${key}'`, DiagnosticSeverity.Warning);
 		}
@@ -185,7 +165,7 @@ function validateInstance(
 		if (key === 'repeat') {
 			validateEnumValue(pair, doc, diagnostics, VALID_REPEAT, 'repeat');
 		} else if (key === 'encoding') {
-			validateEnumValue(pair, doc, diagnostics, VALID_ENCODINGS, 'encoding', true);
+			validateEnumValue(pair, doc, diagnostics, STRING_ENCODINGS, 'encoding', true);
 		} else if (EXPRESSION_KEYS.has(key)) {
 			validateExpressionValue(pair, doc, diagnostics);
 		}
@@ -303,7 +283,7 @@ function validateParams(
 
 			if (key === 'id') hasId = true;
 
-			if (!VALID_PARAM_KEYS.has(key)) {
+			if (!PARAM_KEYS.includes(key)) {
 				addDiagnostic(diagnostics, child, doc,
 					`Unknown param key '${key}'`, DiagnosticSeverity.Warning);
 			}

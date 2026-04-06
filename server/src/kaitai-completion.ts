@@ -1,8 +1,8 @@
-import { CompletionItem, CompletionItemKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { CompletionItem, CompletionItemKind } from 'vscode-languageserver/node';
 import Parser from 'web-tree-sitter';
 import { EXPRESSION_KEYS } from './kaitai-expression';
-import { VALID_ENCODINGS } from './kaitai-validation';
+import { STRING_ENCODINGS } from './kaitai-validation';
 
 // ---- AST helpers (same pattern as other modules) ----
 
@@ -377,25 +377,25 @@ function determineKeySection(textDocument: TextDocument, offset: number): Comple
 
 // ---- Static data ----
 
-const TOP_LEVEL_KEYS = [
+export const TOP_LEVEL_KEYS = [
 	'meta', 'seq', 'types', 'instances', 'enums', 'doc', 'doc-ref', 'params', 'to-string',
 ];
 
-const META_KEYS = [
+export const META_KEYS = [
 	'id', 'title', 'endian', 'encoding', 'bit-endian', 'ks-version', 'ks-debug',
 	'ks-opaque-types', 'imports', 'application', 'file-extension', 'license', 'xref', 'tags',
 ];
 
-const ATTRIBUTE_KEYS = [
+export const ATTRIBUTE_KEYS = [
 	'id', 'type', 'size', 'size-eos', 'repeat', 'repeat-expr', 'repeat-until',
 	'if', 'doc', 'doc-ref', 'contents', 'encoding', 'enum', 'process',
 	'pad-right', 'terminator', 'consume', 'include', 'eos-error', 'valid',
 	'pos', 'io', 'value',
 ];
 
-const PARAM_KEYS = ['id', 'type', 'doc', 'doc-ref', 'enum'];
+export const PARAM_KEYS = ['id', 'type', 'doc', 'doc-ref', 'enum'];
 
-const BUILTIN_TYPES: string[] = [
+export const BUILTIN_TYPES: string[] = [
 	'u1', 'u2', 'u4', 'u8',
 	'u2le', 'u4le', 'u8le', 'u2be', 'u4be', 'u8be',
 	's1', 's2', 's4', 's8',
@@ -544,7 +544,7 @@ function valueCompletions(key: string, _prefix: string, root: Parser.SyntaxNode)
 
 	if (key === 'encoding') {
 		const PRIORITY: Record<string, string> = { 'UTF-8': '0', 'ASCII': '1' };
-		return [...VALID_ENCODINGS].map(e => ({
+		return [...STRING_ENCODINGS].map(e => ({
 			label: e,
 			kind: CompletionItemKind.Value,
 			sortText: (PRIORITY[e] ?? '2') + '_' + e,
