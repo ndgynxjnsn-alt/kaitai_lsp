@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ConverterViewProvider } from './converterViewProvider';
 
 type KsyMsg =
 	| { type: 'update'; ksyYaml: string; bufferHex: string }
@@ -10,16 +11,22 @@ type HighlightMsg =
 	| { type: 'setHover'; range: { start: number; end: number } | null }
 	| { type: 'setSelect'; range: { start: number; end: number } | null };
 
-type IncomingMsg = HighlightMsg;
-
 export class KaitaiPanels {
 	private static ctx: vscode.ExtensionContext | undefined;
 	private static binaryPath: string | undefined;
+	private static binaryBuffer: Buffer | undefined;
 	private static lastKsyYaml: string | undefined;
 	private static hexPanel: vscode.WebviewPanel | undefined;
 	private static treePanel: vscode.WebviewPanel | undefined;
+	private static converterProvider: ConverterViewProvider | undefined;
 	private static listenersSetup = false;
 	private static disposables: vscode.Disposable[] = [];
+	private static panelReady: { hex: boolean; tree: boolean } = { hex: false, tree: false };
+	private static panelPending: { hex?: KsyMsg; tree?: KsyMsg } = {};
+
+	static setConverterProvider(p: ConverterViewProvider): void {
+		KaitaiPanels.converterProvider = p;
+	}
 
 	static createOrShow(context: vscode.ExtensionContext): void {
 		KaitaiPanels.ctx = context;
@@ -27,19 +34,25 @@ export class KaitaiPanels {
 			KaitaiPanels.setupListeners(context);
 			KaitaiPanels.listenersSetup = true;
 		}
-		KaitaiPanels.ensureHexPanel();
-		KaitaiPanels.ensureTreePanel();
+		const initialMsg = KaitaiPanels.currentMsg();
+		KaitaiPanels.ensurePanel('hex', initialMsg);
+		KaitaiPanels.ensurePanel('tree', initialMsg);
 	}
 
-	private static ensureHexPanel(): void {
-		const context = KaitaiPanels.ctx!;
-		if (KaitaiPanels.hexPanel) {
-			KaitaiPanels.hexPanel.reveal();
+	private static ensurePanel(type: 'hex' | 'tree', initialMsg: KsyMsg | undefined): void {
+		const existing = type === 'hex' ? KaitaiPanels.hexPanel : KaitaiPanels.treePanel;
+		if (existing) {
+			if (initialMsg) existing.webview.postMessage(initialMsg);
+			existing.reveal();
 			return;
 		}
+
+		if (initialMsg) KaitaiPanels.panelPending[type] = initialMsg;
+
+		const context = KaitaiPanels.ctx!;
 		const panel = vscode.window.createWebviewPanel(
-			'kaitaiHex',
-			'Kaitai Hex',
+			type === 'hex' ? 'kaitaiHex' : 'kaitaiTree',
+			type === 'hex' ? 'Kaitai Hex' : 'Kaitai Tree',
 			vscode.ViewColumn.Beside,
 			{
 				enableScripts: true,
@@ -47,47 +60,41 @@ export class KaitaiPanels {
 				retainContextWhenHidden: true,
 			}
 		);
-		KaitaiPanels.hexPanel = panel;
-		panel.webview.html = KaitaiPanels.buildHtml(panel, 'hex');
-		panel.webview.onDidReceiveMessage((msg: IncomingMsg) =>
-			KaitaiPanels.relayHighlight('hex', msg)
-		);
-		panel.onDidDispose(() => { KaitaiPanels.hexPanel = undefined; });
-		KaitaiPanels.sendToPanel(panel, KaitaiPanels.currentMsg());
-	}
+		if (type === 'hex') KaitaiPanels.hexPanel = panel;
+		else KaitaiPanels.treePanel = panel;
 
-	private static ensureTreePanel(): void {
-		const context = KaitaiPanels.ctx!;
-		if (KaitaiPanels.treePanel) {
-			KaitaiPanels.treePanel.reveal();
-			return;
-		}
-		const panel = vscode.window.createWebviewPanel(
-			'kaitaiTree',
-			'Kaitai Tree',
-			vscode.ViewColumn.Beside,
-			{
-				enableScripts: true,
-				localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'webview', 'dist')],
-				retainContextWhenHidden: true,
+		panel.webview.html = KaitaiPanels.buildHtml(panel, type);
+		panel.webview.onDidReceiveMessage((msg: HighlightMsg | { type: 'ready' }) => {
+			if (msg.type === 'ready') {
+				KaitaiPanels.panelReady[type] = true;
+				const pending = KaitaiPanels.panelPending[type];
+				if (pending) {
+					panel.webview.postMessage(pending);
+					delete KaitaiPanels.panelPending[type];
+				}
+				return;
 			}
-		);
-		KaitaiPanels.treePanel = panel;
-		panel.webview.html = KaitaiPanels.buildHtml(panel, 'tree');
-		panel.webview.onDidReceiveMessage((msg: IncomingMsg) =>
-			KaitaiPanels.relayHighlight('tree', msg)
-		);
-		panel.onDidDispose(() => { KaitaiPanels.treePanel = undefined; });
-		KaitaiPanels.sendToPanel(panel, KaitaiPanels.currentMsg());
+			KaitaiPanels.relayHighlight(type, msg as HighlightMsg);
+		});
+		panel.onDidDispose(() => {
+			if (type === 'hex') KaitaiPanels.hexPanel = undefined;
+			else KaitaiPanels.treePanel = undefined;
+			KaitaiPanels.panelReady[type] = false;
+			delete KaitaiPanels.panelPending[type];
+		});
 	}
 
-	/** Forward highlight events from one panel to the other. */
-	private static relayHighlight(from: 'hex' | 'tree', msg: IncomingMsg): void {
+	private static relayHighlight(from: 'hex' | 'tree', msg: HighlightMsg): void {
 		const target = from === 'hex' ? KaitaiPanels.treePanel : KaitaiPanels.hexPanel;
 		target?.webview.postMessage(msg);
+		if (msg.type === 'setSelect' && msg.range !== null && KaitaiPanels.binaryBuffer) {
+			const start = msg.range?.start ?? 0;
+			KaitaiPanels.converterProvider?.updateBytes(
+				Array.from(KaitaiPanels.binaryBuffer.slice(start, start + 8))
+			);
+		}
 	}
 
-	/** Ask the user to pick a binary file, then re-parse. */
 	static async pickBinaryFile(context: vscode.ExtensionContext): Promise<void> {
 		KaitaiPanels.createOrShow(context);
 		const uris = await vscode.window.showOpenDialog({
@@ -97,11 +104,33 @@ export class KaitaiPanels {
 			title: 'Select binary file to parse',
 		});
 		if (!uris?.[0]) return;
-		KaitaiPanels.binaryPath = uris[0].fsPath;
+		await KaitaiPanels.loadBinary(uris[0].fsPath);
+	}
 
+	static async selectBinaryPath(fsPath: string): Promise<void> {
+		await KaitaiPanels.loadBinary(fsPath);
+	}
+
+	private static async loadBinary(fsPath: string): Promise<void> {
+		try {
+			KaitaiPanels.binaryBuffer = fs.readFileSync(fsPath);
+			KaitaiPanels.binaryPath = fsPath;
+		} catch (e) {
+			vscode.window.showErrorMessage(`Kaitai: cannot read binary file — ${e}`);
+			return;
+		}
+		KaitaiPanels.converterProvider?.updateBytes(
+			Array.from(KaitaiPanels.binaryBuffer.slice(0, 8))
+		);
 		const activeKsy = vscode.window.activeTextEditor?.document;
 		if (activeKsy?.languageId === 'kaitai-struct') {
 			KaitaiPanels.sendKsy(activeKsy.getText());
+			return;
+		}
+		const ksyUris = await vscode.workspace.findFiles('**/*.ksy');
+		if (ksyUris.length === 1) {
+			const doc = await vscode.workspace.openTextDocument(ksyUris[0]);
+			KaitaiPanels.sendKsy(doc.getText());
 		} else {
 			KaitaiPanels.sendBinaryOnly();
 		}
@@ -122,57 +151,50 @@ export class KaitaiPanels {
 		);
 		context.subscriptions.push(...KaitaiPanels.disposables);
 
-		// Initial send if a .ksy is already open
 		const activeKsy = vscode.window.activeTextEditor?.document;
 		if (activeKsy?.languageId === 'kaitai-struct') {
 			KaitaiPanels.lastKsyYaml = activeKsy.getText();
 		}
 	}
 
+	private static bufferToHex(buf: Buffer): string {
+		return buf.toString('hex').replace(/(.{2})/g, '$1 ').trim();
+	}
+
+	private static sendToPanel(type: 'hex' | 'tree', msg: KsyMsg): void {
+		const panel = type === 'hex' ? KaitaiPanels.hexPanel : KaitaiPanels.treePanel;
+		if (!panel) return;
+		if (KaitaiPanels.panelReady[type]) {
+			panel.webview.postMessage(msg);
+		} else {
+			KaitaiPanels.panelPending[type] = msg;
+		}
+	}
+
 	private static sendKsy(ksyYaml: string): void {
 		KaitaiPanels.lastKsyYaml = ksyYaml;
-		if (!KaitaiPanels.binaryPath) return;
-		let bufferHex: string;
-		try {
-			const buf = fs.readFileSync(KaitaiPanels.binaryPath);
-			bufferHex = Buffer.from(buf).toString('hex').replace(/(.{2})/g, '$1 ').trim();
-		} catch (e) {
-			vscode.window.showErrorMessage(`Kaitai: cannot read binary file — ${e}`);
-			return;
-		}
+		if (!KaitaiPanels.binaryBuffer) return;
+		const bufferHex = KaitaiPanels.bufferToHex(KaitaiPanels.binaryBuffer);
 		const msg: KsyMsg = { type: 'update', ksyYaml, bufferHex };
-		KaitaiPanels.hexPanel?.webview.postMessage(msg);
-		KaitaiPanels.treePanel?.webview.postMessage(msg);
+		KaitaiPanels.sendToPanel('hex', msg);
+		KaitaiPanels.sendToPanel('tree', msg);
 	}
 
 	private static sendBinaryOnly(): void {
-		if (!KaitaiPanels.binaryPath) return;
-		try {
-			const buf = fs.readFileSync(KaitaiPanels.binaryPath);
-			const bufferHex = Buffer.from(buf).toString('hex').replace(/(.{2})/g, '$1 ').trim();
-			const msg: KsyMsg = { type: 'binaryOnly', bufferHex };
-			KaitaiPanels.hexPanel?.webview.postMessage(msg);
-			KaitaiPanels.treePanel?.webview.postMessage(msg);
-		} catch { /* ignore */ }
+		if (!KaitaiPanels.binaryBuffer) return;
+		const bufferHex = KaitaiPanels.bufferToHex(KaitaiPanels.binaryBuffer);
+		const msg: KsyMsg = { type: 'binaryOnly', bufferHex };
+		KaitaiPanels.sendToPanel('hex', msg);
+		KaitaiPanels.sendToPanel('tree', msg);
 	}
 
-	/** Returns the message to send when a panel first opens (may be undefined). */
 	private static currentMsg(): KsyMsg | undefined {
-		if (!KaitaiPanels.binaryPath) return undefined;
-		try {
-			const buf = fs.readFileSync(KaitaiPanels.binaryPath);
-			const bufferHex = Buffer.from(buf).toString('hex').replace(/(.{2})/g, '$1 ').trim();
-			if (KaitaiPanels.lastKsyYaml) {
-				return { type: 'update', ksyYaml: KaitaiPanels.lastKsyYaml, bufferHex };
-			}
-			return { type: 'binaryOnly', bufferHex };
-		} catch {
-			return undefined;
+		if (!KaitaiPanels.binaryBuffer) return undefined;
+		const bufferHex = KaitaiPanels.bufferToHex(KaitaiPanels.binaryBuffer);
+		if (KaitaiPanels.lastKsyYaml) {
+			return { type: 'update', ksyYaml: KaitaiPanels.lastKsyYaml, bufferHex };
 		}
-	}
-
-	private static sendToPanel(panel: vscode.WebviewPanel, msg: KsyMsg | undefined): void {
-		if (msg) panel.webview.postMessage(msg);
+		return { type: 'binaryOnly', bufferHex };
 	}
 
 	private static buildHtml(panel: vscode.WebviewPanel, panelType: 'hex' | 'tree'): string {
@@ -181,13 +203,11 @@ export class KaitaiPanels {
 		const indexPath = path.join(distUri.fsPath, 'index.html');
 		let html = fs.readFileSync(indexPath, 'utf-8');
 
-		// Replace all relative asset paths with proper webview URIs
 		html = html.replace(/(src|href)="(\.\/[^"]+)"/g, (_, attr, relPath) => {
 			const absUri = vscode.Uri.joinPath(distUri, relPath.replace(/^\.\//, ''));
 			return `${attr}="${panel.webview.asWebviewUri(absUri)}"`;
 		});
 
-		// Inject Content-Security-Policy (unsafe-eval needed for kaitai new Function)
 		const csp = [
 			`default-src 'none'`,
 			`script-src 'unsafe-eval' ${panel.webview.cspSource}`,
@@ -196,15 +216,10 @@ export class KaitaiPanels {
 			`img-src ${panel.webview.cspSource} data:`,
 		].join('; ');
 
-		// 1. Strip any existing CSP tags from the source HTML to prevent conflicts
-		const processedHtml = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/gi, '');
-
-		// 2. Safely inject immediately after the opening <head> tag, regardless of attributes
-		const replacedHtml = processedHtml.replace(
-			/<head[^>]*>/i,
-        	(match) => `${match}\n  <meta http-equiv="Content-Security-Policy" content="${csp}">\n  <meta name="kaitai-panel" content="${panelType}">`
-    );
-
-		return replacedHtml;
+		return html
+			.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/gi, '')
+			.replace(/<head[^>]*>/i, match =>
+				`${match}\n  <meta http-equiv="Content-Security-Policy" content="${csp}">\n  <meta name="kaitai-panel" content="${panelType}">`
+			);
 	}
 }

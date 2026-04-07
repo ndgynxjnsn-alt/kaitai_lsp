@@ -27,6 +27,11 @@ export default function App() {
   // Prevents re-posting highlight events that arrived from the other panel
   const externalUpdate = useRef(false);
 
+  // Signal to the extension host that this webview is ready to receive messages
+  useEffect(() => {
+    vscode.postMessage({ type: 'ready' });
+  }, []);
+
   // Relay local highlight store changes to the extension host → other panel
   useEffect(() => {
     return useHighlightStore.subscribe((state, prev) => {

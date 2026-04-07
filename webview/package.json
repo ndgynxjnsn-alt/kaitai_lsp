@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.45",
     "js-yaml": "^4.1.1",
     "kaitai-struct": "^0.11.0",
     "kaitai-struct-compiler": "^0.11.0",

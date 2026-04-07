@@ -42,7 +42,7 @@ function TreeNodeRow({ node, depth }: { node: TreeNode; depth: number }) {
         onMouseLeave={handleMouseLeave}
       >
         {hasChildren && (
-          <span className="tree-toggle">{open ? "\u25BE" : "\u25B8"}</span>
+          <i className={`codicon ${open ? 'codicon-chevron-down' : 'codicon-chevron-right'} tree-toggle`} />
         )}
         {!hasChildren && <span className="tree-toggle-spacer" />}
         <NodeLabel node={node} />

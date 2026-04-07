@@ -2,7 +2,8 @@
 	"name": "kaitai-struct-lsp",
 	"displayName": "Kaitai Struct",
 	"description": "Kaitai Struct for VSCode",
-	"version": "0.2.0",
+	"icon": "assets/kaitai_16x_dark.png",
+	"version": "0.2.1",
 	"publisher": "daniellugo",
 	"license": "MIT",
 	"repository": {
@@ -15,8 +16,30 @@
 	"categories": [
 		"Programming Languages"
 	],
-"main": "./client/out/extension.js",
+	"main": "./client/out/extension.js",
 	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "kaitai",
+					"title": "Kaitai Struct",
+					"icon": "assets/kaitai_16x_dark.png"
+				}
+			]
+		},
+		"views": {
+			"kaitai": [
+				{ "id": "kaitai.ksyFiles", "name": "KSY Files" },
+				{ "id": "kaitai.binaryFiles", "name": "Binary Files" },
+				{ "id": "kaitai.converter", "name": "Converter", "type": "webview" }
+			]
+		},
+		"viewsWelcome": [
+			{
+				"view": "kaitai.binaryFiles",
+				"contents": "Set a glob to list binary files.\n[Set Pattern](command:kaitai-struct.setBinaryGlob)"
+			}
+		],
 		"commands": [
 			{
 				"command": "kaitai-struct.openViewer",
@@ -26,6 +49,20 @@
 			{
 				"command": "kaitai-struct.selectBinaryFile",
 				"title": "Kaitai: Select Binary File"
+			},
+			{
+				"command": "kaitai-struct.refreshKsy",
+				"title": "Kaitai: Refresh KSY Files",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "kaitai-struct.setBinaryGlob",
+				"title": "Kaitai: Set Binary Glob",
+				"icon": "$(filter)"
+			},
+			{
+				"command": "kaitai-struct.selectBinaryPath",
+				"title": "Kaitai: Select Binary Path"
 			}
 		],
 		"menus": {
@@ -33,6 +70,18 @@
 				{
 					"command": "kaitai-struct.openViewer",
 					"when": "resourceExtname == .ksy",
+					"group": "navigation"
+				}
+			],
+			"view/title": [
+				{
+					"command": "kaitai-struct.refreshKsy",
+					"when": "view == kaitai.ksyFiles",
+					"group": "navigation"
+				},
+				{
+					"command": "kaitai-struct.setBinaryGlob",
+					"when": "view == kaitai.binaryFiles",
 					"group": "navigation"
 				}
 			]

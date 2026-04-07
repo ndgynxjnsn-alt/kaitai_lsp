@@ -68,10 +68,13 @@ export default function HexViewer({ hex }: { hex: string }) {
 
   const midpoint = bytesPerLine / 2;
 
-  const rows: number[][] = [];
-  for (let i = 0; i < bytes.length; i += bytesPerLine) {
-    rows.push(bytes.slice(i, i + bytesPerLine));
-  }
+  const rows = useMemo(() => {
+    const result: number[][] = [];
+    for (let i = 0; i < bytes.length; i += bytesPerLine) {
+      result.push(bytes.slice(i, i + bytesPerLine));
+    }
+    return result;
+  }, [bytes, bytesPerLine]);
 
   return (
     <div className="hex-viewer" ref={containerRef}>

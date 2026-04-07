@@ -1,6 +1,10 @@
+function cleanHex(hex: string): string {
+  return hex.replace(/0x/gi, '').replace(/[^0-9a-fA-F]/g, '');
+}
+
 /** Parse a hex string (e.g. "ca fe 00 04") into byte values. */
 export function parseHexBytes(hex: string): number[] {
-  const cleaned = hex.replace(/0x/gi, '').replace(/[^0-9a-fA-F]/g, '');
+  const cleaned = cleanHex(hex);
   const bytes: number[] = [];
   for (let i = 0; i + 1 < cleaned.length; i += 2) {
     bytes.push(parseInt(cleaned.substring(i, i + 2), 16));
@@ -29,7 +33,7 @@ export function bytesPerLineForWidth(width: number): 8 | 16 | 24 | 32 {
 }
 
 export function hexToArrayBuffer(hex: string): ArrayBuffer {
-  const cleaned = hex.replace(/0x/gi, '').replace(/[^0-9a-fA-F]/g, '');
+  const cleaned = cleanHex(hex);
   const bytes = new Uint8Array(cleaned.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(cleaned.substring(i * 2, i * 2 + 2), 16);

@@ -8,6 +8,8 @@ import {
 	TransportKind,
 } from 'vscode-languageclient/node';
 import { KaitaiPanels } from './kaitaiPanel';
+import { KsyFilesProvider, BinaryFilesProvider } from './sidebarProviders';
+import { ConverterViewProvider } from './converterViewProvider';
 
 let client: LanguageClient;
 
@@ -38,12 +40,41 @@ export async function activate(context: ExtensionContext): Promise<void> {
 
 	await client.start();
 
+	// Sidebar providers
+	const ksyProvider = new KsyFilesProvider(context);
+	const binaryProvider = new BinaryFilesProvider();
+	const converterProvider = new ConverterViewProvider();
+	KaitaiPanels.setConverterProvider(converterProvider);
+
+	vscode.window.registerTreeDataProvider('kaitai.ksyFiles', ksyProvider);
+	vscode.window.registerTreeDataProvider('kaitai.binaryFiles', binaryProvider);
+	vscode.window.registerWebviewViewProvider(ConverterViewProvider.viewType, converterProvider);
+
 	context.subscriptions.push(
+		// Existing panel commands
 		vscode.commands.registerCommand('kaitai-struct.openViewer', () => {
 			KaitaiPanels.createOrShow(context);
 		}),
 		vscode.commands.registerCommand('kaitai-struct.selectBinaryFile', async () => {
 			await KaitaiPanels.pickBinaryFile(context);
+		}),
+
+		// Sidebar commands
+		vscode.commands.registerCommand('kaitai-struct.refreshKsy', () => {
+			ksyProvider.refresh();
+		}),
+		vscode.commands.registerCommand('kaitai-struct.setBinaryGlob', async () => {
+			const current = binaryProvider.getGlob();
+			const input = await vscode.window.showInputBox({
+				prompt: 'Glob pattern for binary files (e.g. **/*.bin)',
+				value: current,
+				placeHolder: '**/*.bin',
+			});
+			if (input !== undefined) binaryProvider.setGlob(input);
+		}),
+		vscode.commands.registerCommand('kaitai-struct.selectBinaryPath', async (fsPath: string) => {
+			KaitaiPanels.createOrShow(context);
+			await KaitaiPanels.selectBinaryPath(fsPath);
 		}),
 	);
 }
