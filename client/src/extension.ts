@@ -76,6 +76,17 @@ export async function activate(context: ExtensionContext): Promise<void> {
 			KaitaiPanels.createOrShow(context);
 			await KaitaiPanels.selectBinaryPath(fsPath);
 		}),
+		vscode.commands.registerCommand('kaitai-struct.pasteHex', async () => {
+			const input = await vscode.window.showInputBox({
+				title: 'Paste Hex String',
+				prompt: 'Hex bytes — spaces, 0x-prefix, and colons are all accepted',
+				placeHolder: 'CA FE 00 04  or  0xCA 0xFE  or  CA:FE:00:04',
+			});
+			if (input === undefined) return;
+			KaitaiPanels.createOrShow(context);
+			await KaitaiPanels.loadHexInput(input);
+		}),
+		{ dispose: () => binaryProvider.dispose() },
 	);
 }
 

@@ -34,12 +34,6 @@
 				{ "id": "kaitai.converter", "name": "Converter", "type": "webview" }
 			]
 		},
-		"viewsWelcome": [
-			{
-				"view": "kaitai.binaryFiles",
-				"contents": "Set a glob to list binary files.\n[Set Pattern](command:kaitai-struct.setBinaryGlob)"
-			}
-		],
 		"commands": [
 			{
 				"command": "kaitai-struct.openViewer",
@@ -63,6 +57,11 @@
 			{
 				"command": "kaitai-struct.selectBinaryPath",
 				"title": "Kaitai: Select Binary Path"
+			},
+			{
+				"command": "kaitai-struct.pasteHex",
+				"title": "Kaitai: Paste Hex String",
+				"icon": "$(clippy)"
 			}
 		],
 		"menus": {

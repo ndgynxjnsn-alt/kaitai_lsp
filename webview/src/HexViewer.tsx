@@ -28,6 +28,20 @@ export default function HexViewer({ hex }: { hex: string }) {
     return () => observer.disconnect();
   }, []);
 
+  // Ctrl/Cmd+C copies selected bytes as compact uppercase hex
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== 'c') return;
+      const sel = useHighlightStore.getState().selectedRange;
+      if (!sel) return;
+      const text = bytes.slice(sel.start, sel.end).map(b => byteHex(b).toUpperCase()).join('');
+      navigator.clipboard.writeText(text);
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [bytes]);
+
   const mouseDownByte = useRef<number | null>(null);
 
   const updateSelection = useCallback(

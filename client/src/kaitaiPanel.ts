@@ -111,6 +111,31 @@ export class KaitaiPanels {
 		await KaitaiPanels.loadBinary(fsPath);
 	}
 
+	static async loadHexInput(hex: string): Promise<void> {
+		let buf: Buffer;
+		try {
+			buf = KaitaiPanels.hexStringToBuffer(hex);
+		} catch (e) {
+			vscode.window.showErrorMessage(`Kaitai: invalid hex input — ${e}`);
+			return;
+		}
+		KaitaiPanels.binaryBuffer = buf;
+		KaitaiPanels.binaryPath = undefined;
+		KaitaiPanels.converterProvider?.updateBytes(Array.from(buf.slice(0, 8)));
+		await KaitaiPanels.resolveAndSendKsy();
+	}
+
+	private static hexStringToBuffer(hex: string): Buffer {
+		const cleaned = hex.replace(/0x/gi, '').replace(/[^0-9a-fA-F]/g, '');
+		if (cleaned.length === 0) throw new Error('no hex data found in input');
+		const padded = cleaned.length % 2 !== 0 ? cleaned + '0' : cleaned;
+		const bytes = Buffer.alloc(padded.length / 2);
+		for (let i = 0; i < padded.length; i += 2) {
+			bytes[i / 2] = parseInt(padded.substring(i, i + 2), 16);
+		}
+		return bytes;
+	}
+
 	private static async loadBinary(fsPath: string): Promise<void> {
 		try {
 			KaitaiPanels.binaryBuffer = fs.readFileSync(fsPath);
@@ -122,18 +147,45 @@ export class KaitaiPanels {
 		KaitaiPanels.converterProvider?.updateBytes(
 			Array.from(KaitaiPanels.binaryBuffer.slice(0, 8))
 		);
-		const activeKsy = vscode.window.activeTextEditor?.document;
-		if (activeKsy?.languageId === 'kaitai-struct') {
-			KaitaiPanels.sendKsy(activeKsy.getText());
+		await KaitaiPanels.resolveAndSendKsy();
+	}
+
+	/** Find the best KSY to use and send it, falling back to binary-only. */
+	private static async resolveAndSendKsy(): Promise<void> {
+		// 1. Already known from an editor change event — most reliable.
+		if (KaitaiPanels.lastKsyYaml) {
+			KaitaiPanels.sendKsy(KaitaiPanels.lastKsyYaml);
 			return;
 		}
+
+		// 2. Currently active text editor.
+		const activeDoc = vscode.window.activeTextEditor?.document;
+		if (KaitaiPanels.isKsy(activeDoc)) {
+			KaitaiPanels.sendKsy(activeDoc!.getText());
+			return;
+		}
+
+		// 3. Any open text document (covers unfocused editors).
+		const openKsy = vscode.workspace.textDocuments.find(KaitaiPanels.isKsy);
+		if (openKsy) {
+			KaitaiPanels.sendKsy(openKsy.getText());
+			return;
+		}
+
+		// 4. Workspace file search — use only when there is exactly one match
+		//    to avoid ambiguity.
 		const ksyUris = await vscode.workspace.findFiles('**/*.ksy');
 		if (ksyUris.length === 1) {
 			const doc = await vscode.workspace.openTextDocument(ksyUris[0]);
 			KaitaiPanels.sendKsy(doc.getText());
-		} else {
-			KaitaiPanels.sendBinaryOnly();
+			return;
 		}
+
+		KaitaiPanels.sendBinaryOnly();
+	}
+
+	private static isKsy(doc: vscode.TextDocument | undefined): doc is vscode.TextDocument {
+		return !!doc && (doc.languageId === 'kaitai-struct' || doc.fileName.endsWith('.ksy'));
 	}
 
 	private static setupListeners(context: vscode.ExtensionContext): void {

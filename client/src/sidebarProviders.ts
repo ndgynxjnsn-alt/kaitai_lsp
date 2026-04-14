@@ -3,7 +3,9 @@ import * as vscode from 'vscode';
 
 interface DirNode { kind: 'dir'; fsPath: string; label: string; children: TreeNode[] }
 interface FileNode { kind: 'file'; uri: vscode.Uri; label: string }
-type TreeNode = DirNode | FileNode;
+interface PasteHexNode { kind: 'pasteHex' }
+interface SetGlobNode { kind: 'setGlob' }
+type TreeNode = DirNode | FileNode | PasteHexNode | SetGlobNode;
 
 function buildTree(uris: readonly vscode.Uri[]): TreeNode[] {
 	const folders = vscode.workspace.workspaceFolders;
@@ -37,7 +39,6 @@ function buildRooted(uris: vscode.Uri[], wsRoot: string): TreeNode[] {
 		dirMap.set(dirPath, node);
 		const parent = path.dirname(dirPath);
 		if (parent === dirPath || parent === wsRoot) {
-			// Direct child of wsRoot — add to roots if not already there.
 			if (!roots.includes(node)) roots.push(node);
 		} else {
 			const parentNode = ensureDir(parent);
@@ -83,14 +84,16 @@ export class KsyFilesProvider implements vscode.TreeDataProvider<TreeNode> {
 			item.iconPath = new vscode.ThemeIcon('file-code');
 			return item;
 		}
-
-		const state = node.children.length > 5
-			? vscode.TreeItemCollapsibleState.Collapsed
-			: vscode.TreeItemCollapsibleState.Expanded;
-		const item = new vscode.TreeItem(node.label, state);
-		item.resourceUri = vscode.Uri.file(node.fsPath);
-		item.iconPath = vscode.ThemeIcon.Folder;
-		return item;
+		if (node.kind === 'dir') {
+			const state = node.children.length > 5
+				? vscode.TreeItemCollapsibleState.Collapsed
+				: vscode.TreeItemCollapsibleState.Expanded;
+			const item = new vscode.TreeItem(node.label, state);
+			item.resourceUri = vscode.Uri.file(node.fsPath);
+			item.iconPath = vscode.ThemeIcon.Folder;
+			return item;
+		}
+		return new vscode.TreeItem('');
 	}
 
 	async getChildren(node?: TreeNode): Promise<TreeNode[]> {
@@ -98,8 +101,8 @@ export class KsyFilesProvider implements vscode.TreeDataProvider<TreeNode> {
 			const uris = await vscode.workspace.findFiles('**/*.ksy');
 			return buildTree(uris);
 		}
-		if (node.kind === 'file') return [];
-		return node.children;
+		if (node.kind === 'dir') return node.children;
+		return [];
 	}
 }
 
@@ -108,9 +111,17 @@ export class BinaryFilesProvider implements vscode.TreeDataProvider<TreeNode> {
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	private glob: string = '';
+	private watcher: vscode.FileSystemWatcher | undefined;
 
 	setGlob(pattern: string): void {
+		this.watcher?.dispose();
+		this.watcher = undefined;
 		this.glob = pattern;
+		if (pattern) {
+			this.watcher = vscode.workspace.createFileSystemWatcher(pattern);
+			this.watcher.onDidCreate(() => this._onDidChangeTreeData.fire(undefined));
+			this.watcher.onDidDelete(() => this._onDidChangeTreeData.fire(undefined));
+		}
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
@@ -122,7 +133,25 @@ export class BinaryFilesProvider implements vscode.TreeDataProvider<TreeNode> {
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
+	dispose(): void {
+		this.watcher?.dispose();
+	}
+
 	getTreeItem(node: TreeNode): vscode.TreeItem {
+		if (node.kind === 'setGlob') {
+			const item = new vscode.TreeItem('Set glob pattern…', vscode.TreeItemCollapsibleState.None);
+			item.iconPath = new vscode.ThemeIcon('filter');
+			item.command = { command: 'kaitai-struct.setBinaryGlob', title: 'Set Glob Pattern' };
+			return item;
+		}
+
+		if (node.kind === 'pasteHex') {
+			const item = new vscode.TreeItem('Paste hex string…', vscode.TreeItemCollapsibleState.None);
+			item.iconPath = new vscode.ThemeIcon('clippy');
+			item.command = { command: 'kaitai-struct.pasteHex', title: 'Paste Hex' };
+			return item;
+		}
+
 		if (node.kind === 'file') {
 			const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.None);
 			item.resourceUri = node.uri;
@@ -146,11 +175,12 @@ export class BinaryFilesProvider implements vscode.TreeDataProvider<TreeNode> {
 
 	async getChildren(node?: TreeNode): Promise<TreeNode[]> {
 		if (!node) {
-			if (!this.glob) return [];
+			const pasteNode: PasteHexNode = { kind: 'pasteHex' };
+			if (!this.glob) return [{ kind: 'setGlob' }, pasteNode];
 			const uris = await vscode.workspace.findFiles(this.glob, '**/*.ksy');
-			return buildTree(uris);
+			return [...buildTree(uris), pasteNode];
 		}
-		if (node.kind === 'file') return [];
-		return node.children;
+		if (node.kind === 'dir') return node.children;
+		return [];
 	}
 }

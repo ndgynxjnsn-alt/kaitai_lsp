@@ -32,6 +32,15 @@ export default function App() {
     vscode.postMessage({ type: 'ready' });
   }, []);
 
+  // Escape clears the selection
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') useHighlightStore.getState().setSelectedRange(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // Relay local highlight store changes to the extension host → other panel
   useEffect(() => {
     return useHighlightStore.subscribe((state, prev) => {
