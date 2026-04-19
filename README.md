@@ -8,19 +8,19 @@ VS Code extension for [Kaitai Struct](https://kaitai.io/) `.ksy` files.
 
 <!-- ![autocomplete](assets/screenshot/autocomplete.webp) -->
 
-<img src="assets/screenshot/autocomplete.webp" alt="autocomplete" height="300"/>
+<img src="assets/screenshot/autocomplete.webp" alt="autocomplete" width=100%/>
 
 ### Normal syntax
 
 Checks top-level and basic syntax
 
-<img src="assets/screenshot/syntax-check1.webp" alt="syntax-check1" height="300"/>
+<img src="assets/screenshot/syntax-check1.webp" alt="syntax-check1" width=100%/>
 
 ### Expression syntax
 
 Beyond basic Kaitai Struct YAML (.ksy) syntax checking, checks your KSY expressions:
 
-<img src="assets/screenshot/syntax-check-2.webp" alt="syntax-check2" height="300"/>
+<img src="assets/screenshot/syntax-check-2.webp" alt="syntax-check2" width=100%/>
 
 
 ### Tree & Hex View
@@ -34,12 +34,12 @@ You can set a *glob* pattern to only display a subset of files (those that are r
 
 **Video**
 
-<img src="assets/screenshot/treeview.gif" alt="tree-view" height="300"/>
+<img src="assets/screenshot/treeview.gif" alt="tree-view" width=100%/>
 
 
 **Image**
 
-<img src="assets/screenshot/treeview.webp" alt="tree-view" height="300"/>
+<img src="assets/screenshot/treeview.webp" alt="tree-view" width=100%/>
 
 
 
