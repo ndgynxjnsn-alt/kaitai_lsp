@@ -3,7 +3,7 @@
 	"displayName": "Kaitai Struct",
 	"description": "Kaitai Struct for VSCode",
 	"icon": "assets/kaitai_16x_dark.png",
-	"version": "0.4.0",
+	"version": "1.0.1",
 	"publisher": "daniellugo",
 	"license": "MIT",
 	"repository": {
